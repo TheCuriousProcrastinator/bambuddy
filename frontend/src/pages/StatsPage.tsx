@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -22,6 +22,8 @@ import {
   ChevronDown,
   Users,
   BarChart3,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import {
   BarChart,
@@ -118,6 +120,207 @@ const RECHARTS_TOOLTIP_STYLE = {
 };
 
 // Widget Components
+function localDateInputValue(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function FilamentFinanceWidget({ currency }: { currency: string }) {
+  const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const canManage = hasPermission('inventory:update');
+
+  const [showForm, setShowForm] = useState(false);
+  const [purchaseDate, setPurchaseDate] = useState(localDateInputValue);
+  const [amountPaid, setAmountPaid] = useState('');
+  const [quantityKg, setQuantityKg] = useState('');
+  const [inventoryId, setInventoryId] = useState('');
+  const [vendor, setVendor] = useState('');
+  const [note, setNote] = useState('');
+
+  const { data: summary, isLoading: summaryLoading } = useQuery({
+    queryKey: ['filamentFinance', 'summary'],
+    queryFn: api.getFilamentFinanceSummary,
+  });
+
+  const { data: purchases } = useQuery({
+    queryKey: ['filamentFinance', 'purchases', 5],
+    queryFn: () => api.getFilamentPurchases(5, 0),
+  });
+
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['filamentFinance'] });
+  };
+
+  const createPurchase = useMutation({
+    mutationFn: api.createFilamentPurchase,
+    onSuccess: async () => {
+      await refresh();
+      setAmountPaid('');
+      setQuantityKg('');
+      setInventoryId('');
+      setVendor('');
+      setNote('');
+      setPurchaseDate(localDateInputValue());
+      setShowForm(false);
+      showToast(t('stats.filamentPurchaseAdded', 'Filament purchase added'));
+    },
+    onError: () => showToast(t('stats.filamentPurchaseAddFailed', 'Could not add filament purchase'), 'error'),
+  });
+
+  const deletePurchase = useMutation({
+    mutationFn: api.deleteFilamentPurchase,
+    onSuccess: async () => {
+      await refresh();
+      showToast(t('stats.filamentPurchaseDeleted', 'Filament purchase deleted'));
+    },
+    onError: () => showToast(t('stats.filamentPurchaseDeleteFailed', 'Could not delete filament purchase'), 'error'),
+  });
+
+  const parsedAmount = Number.parseFloat(amountPaid);
+  const parsedQuantity = Number.parseFloat(quantityKg);
+  const formValid =
+    purchaseDate.length > 0 &&
+    Number.isFinite(parsedAmount) &&
+    parsedAmount > 0 &&
+    Number.isFinite(parsedQuantity) &&
+    parsedQuantity > 0 &&
+    (!inventoryId.trim() || /^F\d{4}$/i.test(inventoryId.trim()));
+
+  const handleAdd = () => {
+    if (!formValid) return;
+    createPurchase.mutate({
+      purchase_date: purchaseDate,
+      amount_paid: parsedAmount,
+      quantity_kg: parsedQuantity,
+      inventory_id: inventoryId.trim() ? inventoryId.trim().toUpperCase() : null,
+      vendor: vendor.trim() || null,
+      note: note.trim() || null,
+    });
+  };
+
+  if (summaryLoading) {
+    return <p className="text-sm text-bambu-gray">{t('common.loading', 'Loading...')}</p>;
+  }
+
+  if (!summary) {
+    return <p className="text-sm text-red-400">{t('stats.filamentFinanceUnavailable', 'Filament finance baseline is not initialized.')}</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg bg-bambu-dark p-3">
+          <p className="text-xs text-bambu-gray">{t('stats.cashSpentFilament', 'Cash spent on filament')}</p>
+          <p className="text-xl font-bold text-white">{currency} {summary.cash_spent_total.toFixed(2)}</p>
+          <p className="mt-1 text-xs text-bambu-gray">
+            {t('stats.openingBalance', 'Opening')} {currency} {summary.opening_filament_purchases.toFixed(2)}
+            {' + '}
+            {currency} {summary.purchase_total.toFixed(2)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-bambu-dark p-3">
+          <p className="text-xs text-bambu-gray">{t('stats.consumedFilamentCost', 'Consumed filament cost')}</p>
+          <p className="text-xl font-bold text-white">{currency} {summary.consumed_cost_total.toFixed(2)}</p>
+          <p className="mt-1 text-xs text-bambu-gray">
+            {t('stats.openingBalance', 'Opening')} {currency} {summary.opening_filament_consumed_cost.toFixed(2)}
+            {' + '}
+            {currency} {summary.post_cutoff_consumed_cost.toFixed(2)}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-bambu-gray">
+        <span>
+          {t('stats.financeCutoff', 'Bambuddy accounting starts after Print Log ID')} {summary.print_log_cutoff_id}
+        </span>
+        {summary.unpriced_post_cutoff_prints > 0 && (
+          <span className="flex items-center gap-1 text-yellow-500">
+            <AlertTriangle className="h-3 w-3" />
+            {summary.unpriced_post_cutoff_prints} {t('stats.unpricedPrints', 'unpriced print(s)')}
+          </span>
+        )}
+      </div>
+
+      {canManage && (
+        <div>
+          <Button size="sm" variant="secondary" onClick={() => setShowForm((value) => !value)}>
+            <Plus className="h-4 w-4" />
+            {showForm ? t('common.cancel', 'Cancel') : t('stats.addFilamentPurchase', 'Add purchase')}
+          </Button>
+        </div>
+      )}
+
+      {showForm && canManage && (
+        <div className="grid gap-3 rounded-lg border border-bambu-dark-tertiary bg-bambu-dark/40 p-3 sm:grid-cols-2">
+          <label className="text-xs text-bambu-gray">
+            {t('common.date', 'Date')}
+            <input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} className="mt-1 w-full rounded border border-bambu-dark-tertiary bg-bambu-dark px-2 py-1.5 text-sm text-white" />
+          </label>
+          <label className="text-xs text-bambu-gray">
+            {t('stats.amountPaid', 'Amount paid')}
+            <input type="number" min="0" step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder="0.00" className="mt-1 w-full rounded border border-bambu-dark-tertiary bg-bambu-dark px-2 py-1.5 text-sm text-white" />
+          </label>
+          <label className="text-xs text-bambu-gray">
+            {t('stats.quantityKg', 'Quantity (kg)')}
+            <input type="number" min="0" step="0.001" value={quantityKg} onChange={(e) => setQuantityKg(e.target.value)} placeholder="1.000" className="mt-1 w-full rounded border border-bambu-dark-tertiary bg-bambu-dark px-2 py-1.5 text-sm text-white" />
+          </label>
+          <label className="text-xs text-bambu-gray">
+            {t('stats.inventoryIdOptional', 'Inventory ID (optional)')}
+            <input type="text" value={inventoryId} onChange={(e) => setInventoryId(e.target.value)} placeholder="F0001" className="mt-1 w-full rounded border border-bambu-dark-tertiary bg-bambu-dark px-2 py-1.5 text-sm uppercase text-white" />
+          </label>
+          <label className="text-xs text-bambu-gray">
+            {t('stats.vendorOptional', 'Vendor (optional)')}
+            <input type="text" value={vendor} onChange={(e) => setVendor(e.target.value)} className="mt-1 w-full rounded border border-bambu-dark-tertiary bg-bambu-dark px-2 py-1.5 text-sm text-white" />
+          </label>
+          <label className="text-xs text-bambu-gray">
+            {t('common.note', 'Note')}
+            <input type="text" value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded border border-bambu-dark-tertiary bg-bambu-dark px-2 py-1.5 text-sm text-white" />
+          </label>
+          <div className="sm:col-span-2">
+            <Button size="sm" onClick={handleAdd} disabled={!formValid || createPurchase.isPending}>
+              {createPurchase.isPending ? t('common.saving', 'Saving...') : t('stats.savePurchase', 'Save purchase')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {(purchases?.items.length || 0) > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-bambu-gray">{t('stats.recentPurchases', 'Recent purchases')}</p>
+          {purchases!.items.map((purchase) => (
+            <div key={purchase.id} className="flex items-center justify-between gap-3 rounded border border-bambu-dark-tertiary px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2">
+                  <span className="font-medium text-white">{currency} {purchase.amount_paid.toFixed(2)}</span>
+                  <span className="text-bambu-gray">{purchase.quantity_kg.toFixed(3)} kg</span>
+                  <span className="text-bambu-gray">{currency} {purchase.price_per_kg.toFixed(2)}/kg</span>
+                </div>
+                <div className="truncate text-xs text-bambu-gray">
+                  {purchase.purchase_date}
+                  {purchase.inventory_id ? ` · ${purchase.inventory_id}` : ''}
+                  {purchase.vendor ? ` · ${purchase.vendor}` : ''}
+                  {purchase.note ? ` · ${purchase.note}` : ''}
+                </div>
+              </div>
+              {canManage && (
+                <button type="button" onClick={() => deletePurchase.mutate(purchase.id)} disabled={deletePurchase.isPending} className="rounded p-1 text-bambu-gray hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50" title={t('common.delete', 'Delete')}>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function QuickStatsWidget({
   stats,
   currency,
@@ -1133,6 +1336,12 @@ export function StatsPage() {
       id: 'quick-stats',
       title: t('stats.quickStats'),
       component: <QuickStatsWidget stats={stats} currency={currency} />,
+      defaultSize: 2,
+    },
+    {
+      id: 'filament-finance',
+      title: t('stats.filamentFinanceAllTime', 'All-time Filament Finance'),
+      component: <FilamentFinanceWidget currency={currency} />,
       defaultSize: 2,
     },
     {

@@ -1,7 +1,8 @@
-from datetime import datetime
+import re
+from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class WalletBalanceResponse(BaseModel):
@@ -116,3 +117,66 @@ class CostCenterMemberResponse(BaseModel):
 
 class CostCenterDetailResponse(CostCenterSummaryResponse):
     members: list[CostCenterMemberResponse] = []
+
+class FilamentFinanceSummaryResponse(BaseModel):
+    opening_filament_purchases: float
+    opening_filament_consumed_cost: float
+    print_log_cutoff_id: int
+    purchase_total: float
+    cash_spent_total: float
+    post_cutoff_consumed_cost: float
+    consumed_cost_total: float
+    purchase_count: int
+    post_cutoff_print_count: int
+    unpriced_post_cutoff_prints: int
+
+
+class FilamentPurchaseCreateRequest(BaseModel):
+    purchase_date: date
+    amount_paid: float = Field(..., gt=0)
+    quantity_kg: float = Field(..., gt=0)
+    inventory_id: str | None = Field(default=None, max_length=32)
+    vendor: str | None = Field(default=None, max_length=150)
+    note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("inventory_id")
+    @classmethod
+    def validate_inventory_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        if not normalized:
+            return None
+        if not re.fullmatch(r"F\d{4}", normalized):
+            raise ValueError("inventory_id must be F followed by four digits")
+        return normalized
+
+    @field_validator("vendor", "note")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class FilamentPurchaseResponse(BaseModel):
+    id: int
+    purchase_date: date
+    amount_paid: float
+    quantity_kg: float
+    inventory_id: str | None = None
+    vendor: str | None = None
+    note: str | None = None
+    price_per_kg: float
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FilamentPurchaseListResponse(BaseModel):
+    items: list[FilamentPurchaseResponse]
+    total: int
+    limit: int
+    offset: int

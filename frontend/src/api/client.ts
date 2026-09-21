@@ -3897,6 +3897,47 @@ export interface ExternalLinkUpdate {
 }
 
 // Finance types
+export interface FilamentFinanceSummary {
+  opening_filament_purchases: number;
+  opening_filament_consumed_cost: number;
+  print_log_cutoff_id: number;
+  purchase_total: number;
+  cash_spent_total: number;
+  post_cutoff_consumed_cost: number;
+  consumed_cost_total: number;
+  purchase_count: number;
+  post_cutoff_print_count: number;
+  unpriced_post_cutoff_prints: number;
+}
+
+export interface FilamentPurchase {
+  id: number;
+  purchase_date: string;
+  amount_paid: number;
+  quantity_kg: number;
+  inventory_id: string | null;
+  vendor: string | null;
+  note: string | null;
+  price_per_kg: number;
+  created_at: string;
+}
+
+export interface FilamentPurchaseCreateRequest {
+  purchase_date: string;
+  amount_paid: number;
+  quantity_kg: number;
+  inventory_id?: string | null;
+  vendor?: string | null;
+  note?: string | null;
+}
+
+export interface FilamentPurchaseListResponse {
+  items: FilamentPurchase[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface CostCenterSummary {
   id: number;
   name: string;
@@ -6035,6 +6076,19 @@ export const api = {
     }),
 
   // Finance
+  getFilamentFinanceSummary: () =>
+    request<FilamentFinanceSummary>('/finance/filament-summary'),
+  getFilamentPurchases: (limit = 20, offset = 0) =>
+    request<FilamentPurchaseListResponse>(`/finance/filament-purchases?limit=${limit}&offset=${offset}`),
+  createFilamentPurchase: (data: FilamentPurchaseCreateRequest) =>
+    request<FilamentPurchase>('/finance/filament-purchases', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteFilamentPurchase: (purchaseId: number) =>
+    request<{ status: string }>(`/finance/filament-purchases/${purchaseId}`, {
+      method: 'DELETE',
+    }),
   getMyBalance: () => request<WalletBalance>('/finance/me/balance'),
   getMyTransactions: (limit = 50, offset = 0) =>
     request<WalletTransactionListResponse>(`/finance/me/transactions?limit=${limit}&offset=${offset}`),

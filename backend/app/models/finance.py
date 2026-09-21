@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum as PyEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from backend.app.core.database import Base
@@ -164,3 +164,34 @@ class WalletTransaction(Base):
     @validates("transaction_type")
     def _validate_transaction_type(self, key: str, value: str | TransactionType) -> str:
         return normalize_transaction_type(value)
+
+class FilamentFinanceBaseline(Base):
+    # Single-row opening balance and cutoff for personal filament accounting.
+    __tablename__ = "filament_finance_baseline"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    opening_filament_purchases: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False))
+    opening_filament_consumed_cost: Mapped[float] = mapped_column(Numeric(16, 6, asdecimal=False))
+    print_log_cutoff_id: Mapped[int] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class FilamentPurchase(Base):
+    # Cash purchase ledger for filament bought after the historical opening balance.
+    __tablename__ = "filament_purchases"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    purchase_date: Mapped[date] = mapped_column(Date, index=True)
+    amount_paid: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False))
+    quantity_kg: Mapped[float] = mapped_column(Numeric(12, 3, asdecimal=False))
+    inventory_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    vendor: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    @property
+    def price_per_kg(self) -> float:
+        if not self.quantity_kg:
+            return 0.0
+        return round(float(self.amount_paid) / float(self.quantity_kg), 4)

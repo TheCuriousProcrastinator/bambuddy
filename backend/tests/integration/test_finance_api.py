@@ -7,8 +7,16 @@ from sqlalchemy import select
 from backend.app.core.auth import get_password_hash
 from backend.app.core.database import repair_wallet_ledger_internal
 from backend.app.models.archive import PrintArchive
-from backend.app.models.finance import BudgetReservation, CostCenter, UserWallet, WalletTransaction
+from backend.app.models.finance import (
+    BudgetReservation,
+    CostCenter,
+    FilamentFinanceBaseline,
+    FilamentPurchase,
+    UserWallet,
+    WalletTransaction,
+)
 from backend.app.models.group import Group
+from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.print_queue import PrintQueueItem
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
@@ -1191,3 +1199,130 @@ class TestFinanceUserDefaults:
 
         wallet = await db_session.scalar(select(UserWallet).where(UserWallet.user_id == user.id))
         assert wallet is not None
+
+class TestFilamentFinanceAPI:
+    @pytest.fixture
+    async def admin_user(self, db_session):
+        user = User(
+            username="filament-finance-admin",
+            email="filament-finance-admin@example.com",
+            password_hash=get_password_hash("AdminPass1!"),
+            role="admin",
+            is_active=True,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+        return user
+
+    @pytest.fixture
+    async def auth_headers(self, async_client: AsyncClient, db_session, admin_user):
+        db_session.add(Settings(key="auth_enabled", value="true"))
+        db_session.add(Settings(key="advanced_auth_enabled", value="false"))
+        await db_session.commit()
+        response = await async_client.post(
+            "/api/v1/auth/login",
+            json={"username": admin_user.username, "password": "AdminPass1!"},
+        )
+        assert response.status_code == 200
+        return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_filament_summary_keeps_cash_and_consumption_separate(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session,
+    ):
+        db_session.add(
+            FilamentFinanceBaseline(
+                id=1,
+                opening_filament_purchases=703.73,
+                opening_filament_consumed_cost=610.941791,
+                print_log_cutoff_id=100,
+            )
+        )
+        db_session.add_all(
+            [
+                PrintLogEntry(
+                    id=101,
+                    status="completed",
+                    print_name="Post-cutoff priced print",
+                    filament_used_grams=8.1,
+                    cost=0.13,
+                ),
+                PrintLogEntry(
+                    id=102,
+                    status="failed",
+                    print_name="Post-cutoff unpriced waste",
+                    filament_used_grams=2.0,
+                    cost=None,
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        response = await async_client.get("/api/v1/finance/filament-summary", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["cash_spent_total"] == pytest.approx(703.73)
+        assert payload["post_cutoff_consumed_cost"] == pytest.approx(0.13)
+        assert payload["consumed_cost_total"] == pytest.approx(611.071791)
+        assert payload["post_cutoff_print_count"] == 2
+        assert payload["unpriced_post_cutoff_prints"] == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_filament_purchase_create_list_delete_updates_cash_total(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session,
+    ):
+        db_session.add(
+            FilamentFinanceBaseline(
+                id=1,
+                opening_filament_purchases=703.73,
+                opening_filament_consumed_cost=610.941791,
+                print_log_cutoff_id=3,
+            )
+        )
+        await db_session.commit()
+
+        create = await async_client.post(
+            "/api/v1/finance/filament-purchases",
+            json={
+                "purchase_date": "2026-09-21",
+                "amount_paid": 25.00,
+                "quantity_kg": 1.0,
+                "inventory_id": "f0001",
+                "vendor": "Test Vendor",
+                "note": "Restock",
+            },
+            headers=auth_headers,
+        )
+        assert create.status_code == 200
+        purchase = create.json()
+        assert purchase["inventory_id"] == "F0001"
+        assert purchase["price_per_kg"] == pytest.approx(25.0)
+
+        listed = await async_client.get("/api/v1/finance/filament-purchases", headers=auth_headers)
+        assert listed.status_code == 200
+        assert listed.json()["total"] == 1
+
+        summary = await async_client.get("/api/v1/finance/filament-summary", headers=auth_headers)
+        assert summary.status_code == 200
+        assert summary.json()["purchase_total"] == pytest.approx(25.0)
+        assert summary.json()["cash_spent_total"] == pytest.approx(728.73)
+
+        deleted = await async_client.delete(
+            f"/api/v1/finance/filament-purchases/{purchase['id']}",
+            headers=auth_headers,
+        )
+        assert deleted.status_code == 200
+
+        summary_after = await async_client.get("/api/v1/finance/filament-summary", headers=auth_headers)
+        assert summary_after.status_code == 200
+        assert summary_after.json()["purchase_total"] == pytest.approx(0.0)
+        assert summary_after.json()["cash_spent_total"] == pytest.approx(703.73)

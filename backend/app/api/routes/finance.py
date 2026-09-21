@@ -14,11 +14,14 @@ from backend.app.models.finance import (
     BudgetReservation,
     CostCenter,
     CostCenterMember,
+    FilamentFinanceBaseline,
+    FilamentPurchase,
     TransactionType,
     UserWallet,
     WalletTransaction,
     normalize_transaction_type,
 )
+from backend.app.models.print_log import PrintLogEntry
 from backend.app.models.settings import Settings
 from backend.app.models.user import User
 from backend.app.schemas.finance import (
@@ -29,6 +32,10 @@ from backend.app.schemas.finance import (
     CostCenterMemberResponse,
     CostCenterSummaryResponse,
     CostCenterUpdateRequest,
+    FilamentFinanceSummaryResponse,
+    FilamentPurchaseCreateRequest,
+    FilamentPurchaseListResponse,
+    FilamentPurchaseResponse,
     ManualPrintRequest,
     TransactionEditRequest,
     WalletAdjustmentRequest,
@@ -46,6 +53,123 @@ from backend.app.services.finance_balance import (
 from backend.app.services.finance_budget import get_cost_center_reserved_map
 
 router = APIRouter(prefix="/finance", tags=["finance"])
+
+
+async def _get_filament_finance_baseline(db: AsyncSession) -> FilamentFinanceBaseline:
+    baseline = await db.get(FilamentFinanceBaseline, 1)
+    if baseline is None:
+        raise HTTPException(status_code=503, detail="Filament finance baseline is not initialized")
+    return baseline
+
+
+@router.get("/filament-summary", response_model=FilamentFinanceSummaryResponse)
+async def get_filament_finance_summary(
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.STATS_READ),
+):
+    baseline = await _get_filament_finance_baseline(db)
+
+    purchase_result = await db.execute(
+        select(
+            func.coalesce(func.sum(FilamentPurchase.amount_paid), 0.0),
+            func.count(FilamentPurchase.id),
+        )
+    )
+    purchase_total_raw, purchase_count_raw = purchase_result.one()
+    purchase_total = float(purchase_total_raw or 0.0)
+    purchase_count = int(purchase_count_raw or 0)
+
+    unpriced_case = case(
+        (
+            PrintLogEntry.cost.is_(None)
+            & PrintLogEntry.filament_used_grams.is_not(None)
+            & (PrintLogEntry.filament_used_grams > 0),
+            1,
+        ),
+        else_=0,
+    )
+    consumed_result = await db.execute(
+        select(
+            func.coalesce(func.sum(PrintLogEntry.cost), 0.0),
+            func.count(PrintLogEntry.id),
+            func.coalesce(func.sum(unpriced_case), 0),
+        ).where(PrintLogEntry.id > baseline.print_log_cutoff_id)
+    )
+    consumed_raw, print_count_raw, unpriced_raw = consumed_result.one()
+    post_cutoff_consumed_cost = float(consumed_raw or 0.0)
+
+    opening_purchases = float(baseline.opening_filament_purchases)
+    opening_consumed = float(baseline.opening_filament_consumed_cost)
+
+    return FilamentFinanceSummaryResponse(
+        opening_filament_purchases=opening_purchases,
+        opening_filament_consumed_cost=opening_consumed,
+        print_log_cutoff_id=baseline.print_log_cutoff_id,
+        purchase_total=round(purchase_total, 2),
+        cash_spent_total=round(opening_purchases + purchase_total, 2),
+        post_cutoff_consumed_cost=round(post_cutoff_consumed_cost, 6),
+        consumed_cost_total=round(opening_consumed + post_cutoff_consumed_cost, 6),
+        purchase_count=purchase_count,
+        post_cutoff_print_count=int(print_count_raw or 0),
+        unpriced_post_cutoff_prints=int(unpriced_raw or 0),
+    )
+
+
+@router.get("/filament-purchases", response_model=FilamentPurchaseListResponse)
+async def list_filament_purchases(
+    limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.STATS_READ),
+):
+    total = int((await db.execute(select(func.count(FilamentPurchase.id)))).scalar_one() or 0)
+    result = await db.execute(
+        select(FilamentPurchase)
+        .order_by(FilamentPurchase.purchase_date.desc(), FilamentPurchase.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = result.scalars().all()
+    return FilamentPurchaseListResponse(
+        items=[FilamentPurchaseResponse.model_validate(row) for row in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post("/filament-purchases", response_model=FilamentPurchaseResponse)
+async def create_filament_purchase(
+    body: FilamentPurchaseCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    purchase = FilamentPurchase(
+        purchase_date=body.purchase_date,
+        amount_paid=round(body.amount_paid, 2),
+        quantity_kg=round(body.quantity_kg, 3),
+        inventory_id=body.inventory_id,
+        vendor=body.vendor,
+        note=body.note,
+    )
+    db.add(purchase)
+    await db.commit()
+    await db.refresh(purchase)
+    return FilamentPurchaseResponse.model_validate(purchase)
+
+
+@router.delete("/filament-purchases/{purchase_id}")
+async def delete_filament_purchase(
+    purchase_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    purchase = await db.get(FilamentPurchase, purchase_id)
+    if purchase is None:
+        raise HTTPException(status_code=404, detail="Filament purchase not found")
+    await db.delete(purchase)
+    await db.commit()
+    return {"status": "success"}
 
 
 def _serialize_wallet_transaction(tx: WalletTransaction) -> WalletTransactionResponse:
