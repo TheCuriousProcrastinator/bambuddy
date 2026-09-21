@@ -5580,6 +5580,11 @@ function PrinterCard({
                                       {tray?.tray_type || t(emptyKind === 'reset' ? 'ams.slotUnconfigured' : 'ams.slotEmpty')}
                                     </div>
                                     <KValueLine k={filamentData ? tray?.k : null} reserve={anySlotHasKValue} />
+                                    {/^(?:F\d{4})$/.test(inventoryAssignment?.spool?.note?.trim() ?? "") && (
+                                      <div className="text-[length:var(--pc-t8,8px)] text-white font-medium truncate">
+                                        {inventoryAssignment?.spool?.note?.trim()}
+                                      </div>
+                                    )}
                                     {/* Fill bar */}
                                     <div className="mt-1 h-1.5 bg-black/30 rounded-full overflow-hidden">
                                       {effectiveFill !== null && effectiveFill >= 0 && !isEmpty && tray && (
