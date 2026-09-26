@@ -512,7 +512,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
       inputType="number"
       suffix="g"
       onSave={onUpdateNet ? async (value) => {
-        await onUpdateNet(spool, Number(value));
+        await onUpdateNet(spool, value.trim() === '' ? Number.NaN : Number(value));
       } : undefined}
     />
   ),
