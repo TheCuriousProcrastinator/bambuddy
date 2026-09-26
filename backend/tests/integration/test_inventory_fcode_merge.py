@@ -38,7 +38,7 @@ async def test_merge_duplicate_into_existing_fcode_keeps_target_stock(
     printer = await printer_factory(name="P1S")
     target = await _spool(
         db_session,
-        note="F0001",
+        stock_code="F0001",
         label_weight=2000,
         weight_used=987,
     )
@@ -78,7 +78,7 @@ async def test_merge_duplicate_into_existing_fcode_keeps_target_stock(
     assert response.status_code == 200
     body = response.json()
     assert body["id"] == target.id
-    assert body["note"] == "F0001"
+    assert body["stock_code"] == "F0001"
     assert body["label_weight"] == 2000
     assert body["weight_used"] == 987
     assert body["label_weight"] - body["weight_used"] == 1013
@@ -110,7 +110,7 @@ async def test_merge_refuses_source_that_is_still_assigned(
 ):
     """Live-slot rows must be moved with the printer F-code picker first."""
     printer = await printer_factory(name="P1S")
-    target = await _spool(db_session, note="F0001", label_weight=2000, weight_used=500)
+    target = await _spool(db_session, stock_code="F0001", label_weight=2000, weight_used=500)
     source = await _spool(db_session, note=None, label_weight=1000, weight_used=0)
 
     db_session.add(
@@ -143,7 +143,7 @@ async def test_merge_rejects_mismatched_filament_identity(
     target = await _spool(
         db_session,
         material="PLA",
-        note="F0001",
+        stock_code="F0001",
         label_weight=2000,
         weight_used=500,
     )
