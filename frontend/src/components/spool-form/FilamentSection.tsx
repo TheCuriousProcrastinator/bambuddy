@@ -517,6 +517,33 @@ export function FilamentSection({
         </div>
       </div>
 
+      {/* Aggregate inventory ID. Kept separate from Note so free-form notes
+          never accidentally become stock-bucket identifiers. */}
+      {!quickAdd && (
+        <div>
+          <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="spool-stock-code">
+            Inventory ID
+          </label>
+          <input
+            id="spool-stock-code"
+            type="text"
+            inputMode="text"
+            autoCapitalize="characters"
+            maxLength={5}
+            className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm font-mono uppercase placeholder:text-bambu-gray/50 focus:outline-none focus:border-bambu-green"
+            placeholder="F0001"
+            value={formData.stock_code}
+            onChange={(e) => {
+              const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+              updateField('stock_code', value);
+            }}
+          />
+          <p className="mt-1 text-xs text-bambu-gray">
+            Existing ID: merge into that stock total. New ID: keep this spool&apos;s current weight.
+          </p>
+        </div>
+      )}
+
       {/* Quantity — only in quick-add mode */}
       {quickAdd && (
         <div>
