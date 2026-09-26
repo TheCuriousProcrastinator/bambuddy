@@ -2296,6 +2296,7 @@ function PrinterCard({
     amsId: number;
     trayId: number;
     trayInfo: { type: string; color: string; location: string; material?: string; profile?: string };
+    pickerMode?: 'standard' | 'filament-code';
   } | null>(null);
   const [configureSlotModal, setConfigureSlotModal] = useState<{
     amsId: number;
@@ -5537,6 +5538,13 @@ function PrinterCard({
                                 const activePrintSlotLabel = activePrintSlotIdx >= 0
                                   ? `P${activePrintSlotIdx + 1}`
                                   : null;
+                                // F-code is the user's short inventory code stored in the
+                                // spool note (for example F0008). The explicit slot assignment
+                                // is authoritative; in Spoolman mode use its assigned spool.
+                                const codeSourceSpool = spoolmanEnabled ? slotSpoolForFill : inventoryAssignment?.spool;
+                                const rawFilamentCode = codeSourceSpool?.note?.trim().toUpperCase() ?? '';
+                                const slotFilamentCode = /^F\d{4}$/.test(rawFilamentCode) ? rawFilamentCode : null;
+
                                 // Slot visual content (goes inside hover card)
                                 const slotVisual = (
                                   <div
@@ -5580,11 +5588,33 @@ function PrinterCard({
                                       {tray?.tray_type || t(emptyKind === 'reset' ? 'ams.slotUnconfigured' : 'ams.slotEmpty')}
                                     </div>
                                     <KValueLine k={filamentData ? tray?.k : null} reserve={anySlotHasKValue} />
-                                    {/^(?:F\d{4})$/.test(inventoryAssignment?.spool?.note?.trim() ?? "") && (
-                                      <div className="text-[length:var(--pc-t8,8px)] text-white font-medium truncate">
-                                        {inventoryAssignment?.spool?.note?.trim()}
-                                      </div>
-                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAssignSpoolModal({
+                                          printerId: printer.id,
+                                          amsId: ams.id,
+                                          trayId: slotIdx,
+                                          pickerMode: 'filament-code',
+                                          trayInfo: {
+                                            type: tray?.tray_type || '',
+                                            material: tray?.tray_type ?? undefined,
+                                            profile: filamentData?.profile || '',
+                                            color: filamentData?.colorHex || '',
+                                            location: `${getAmsLabel(ams.id, ams.tray.length)} Slot ${slotIdx + 1}`,
+                                          },
+                                        });
+                                      }}
+                                      className={`mx-auto mt-0.5 px-1.5 py-px rounded border font-mono text-[length:var(--pc-t8,8px)] leading-none transition-colors ${
+                                        slotFilamentCode
+                                          ? 'border-bambu-green/40 bg-bambu-green/10 text-bambu-green hover:bg-bambu-green/20'
+                                          : 'border-bambu-dark-tertiary bg-bambu-dark text-bambu-gray hover:text-white hover:border-bambu-gray'
+                                      }`}
+                                      title={slotFilamentCode ? `Change filament code ${slotFilamentCode}` : 'Assign filament code'}
+                                    >
+                                      {slotFilamentCode ?? 'F----'}
+                                    </button>
                                     {/* Fill bar */}
                                     <div className="mt-1 h-1.5 bg-black/30 rounded-full overflow-hidden">
                                       {effectiveFill !== null && effectiveFill >= 0 && !isEmpty && tray && (
@@ -7242,6 +7272,7 @@ function PrinterCard({
           trayId={assignSpoolModal.trayId}
           trayInfo={assignSpoolModal.trayInfo}
           spoolmanEnabled={!!spoolmanEnabled}
+          filamentCodeMode={assignSpoolModal.pickerMode === 'filament-code'}
         />
       )}
 
