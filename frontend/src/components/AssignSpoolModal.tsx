@@ -383,11 +383,6 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-bambu-green" />
             <h2 className="text-lg font-semibold text-white">{t('inventory.assignSpool')}</h2>
-            {filamentCodeMode && (
-              <span className="px-1.5 py-0.5 rounded border border-bambu-green/40 bg-bambu-green/10 text-[10px] font-mono font-semibold text-bambu-green">
-                F-code
-              </span>
-            )}
           </div>
           <button
             onClick={onClose}
