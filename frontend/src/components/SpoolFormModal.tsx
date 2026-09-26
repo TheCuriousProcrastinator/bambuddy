@@ -867,7 +867,13 @@ export function SpoolFormModal({
     const validation = validateForm(formData, quickAdd, spoolmanMode, mode);
     if (!validation.isValid) {
       setErrors(validation.errors);
-      if (validation.errors.slicer_filament || validation.errors.material || validation.errors.brand || validation.errors.subtype) {
+      if (
+        validation.errors.slicer_filament ||
+        validation.errors.material ||
+        validation.errors.brand ||
+        validation.errors.subtype ||
+        validation.errors.stock_code
+      ) {
         setActiveTab('filament');
       }
       return;
