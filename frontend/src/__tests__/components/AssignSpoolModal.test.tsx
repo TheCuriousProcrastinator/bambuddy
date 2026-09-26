@@ -214,6 +214,70 @@ describe('AssignSpoolModal', () => {
     expect(screen.getByText(/Polymaker/)).toBeInTheDocument();
   });
 
+  it('F-code mode shows only positive coded inventory, allows the same spool in another slot, and assigns on click', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+
+    const assignedElsewhere = {
+      ...anotherManualSpool,
+      note: 'F0012',
+    };
+    const zeroInventory = {
+      ...manualSpool,
+      id: 4,
+      brand: 'EmptyRoll',
+      note: 'F0013',
+      weight_used: 1000,
+    };
+    const uncoded = {
+      ...manualSpool,
+      id: 5,
+      brand: 'NoCode',
+      note: 'needs label',
+    };
+
+    (api.getSpools as ReturnType<typeof vi.fn>).mockResolvedValue([
+      assignedElsewhere,
+      zeroInventory,
+      uncoded,
+    ]);
+    (api.getAssignments as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 99, spool_id: assignedElsewhere.id, printer_id: 1, ams_id: 0, tray_id: 1 },
+    ]);
+    (api.assignSpool as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 100,
+      spool_id: assignedElsewhere.id,
+      printer_id: 1,
+      ams_id: 0,
+      tray_id: 0,
+      pending_config: false,
+    });
+
+    render(<AssignSpoolModal {...defaultProps} filamentCodeMode />);
+
+    await waitFor(() => {
+      expect(screen.getByText('F0012')).toBeInTheDocument();
+    });
+
+    // Dedicated code picker is intentionally narrower than the normal assign
+    // dialog: no empty rolls, no inventory row that cannot produce an F-code,
+    // and no "already assigned elsewhere" exclusion.
+    expect(screen.queryByText('EmptyRoll')).not.toBeInTheDocument();
+    expect(screen.queryByText('NoCode')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/show all spools/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('F0012'));
+
+    await waitFor(() => {
+      expect(api.assignSpool).toHaveBeenCalledWith({
+        spool_id: assignedElsewhere.id,
+        printer_id: 1,
+        ams_id: 0,
+        tray_id: 0,
+      });
+    });
+  });
+
   it('lists spool with no slicer profile when material matches the tray (#1047)', async () => {
     const spoolWithoutSlicerProfile = {
       id: 10,
