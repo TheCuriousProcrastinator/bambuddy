@@ -59,7 +59,7 @@ const COLUMN_CONFIG = JSON.stringify([
 ]);
 
 describe('InventoryPage inline aggregate stock editing', () => {
-  let spools: Array<typeof BASE_SPOOL>;
+  let spools: Array<Record<string, any>>;
   let lastPatch: Record<string, unknown> | null;
   let lastMerge: Record<string, unknown> | null;
 
