@@ -339,6 +339,7 @@ class TestInventoryCsvRoundTrip:
                 label_weight=1000,
                 weight_used=250,
                 cost_per_kg=24.99,
+                stock_code="F0042",
                 note="batch order",
             )
         )
@@ -368,6 +369,7 @@ class TestInventoryCsvRoundTrip:
         assert spool.label_weight == 1000
         assert spool.weight_used == 250  # usage round-trips
         assert spool.cost_per_kg == 24.99
+        assert spool.stock_code == "F0042"
         assert spool.note == "batch order"
 
 
