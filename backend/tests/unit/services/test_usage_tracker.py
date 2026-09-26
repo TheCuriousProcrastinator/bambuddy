@@ -167,6 +167,54 @@ class TestOnPrintCompleteAMSDelta:
         db.commit.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_shared_spool_across_two_slots_adds_both_slots_usage(self):
+        """A shared F-code stock record can back multiple AMS slots.
+
+        Each physical slot contributes its own consumption to the same inventory
+        record, so the deductions must add rather than one slot replacing the
+        other.
+        """
+        _active_sessions[1] = PrintSession(
+            printer_id=1,
+            print_name="shared-f-code",
+            started_at=datetime.now(timezone.utc),
+            tray_remain_start={(0, 0): 90, (0, 1): 80},
+        )
+
+        # Both slots consume 10% of a 1000 g basis during the print.
+        ams_data = [
+            {
+                "id": 0,
+                "tray": [
+                    {"id": 0, "remain": 80},
+                    {"id": 1, "remain": 70},
+                ],
+            }
+        ]
+        pm = _make_printer_manager(_make_printer_state(ams_data))
+        spool = _make_spool(id=12, label_weight=1000, weight_used=50)
+        assignment_a = _make_assignment(spool_id=12, tray_id=0)
+        assignment_b = _make_assignment(spool_id=12, tray_id=1)
+
+        db = AsyncMock()
+        db.execute = AsyncMock(
+            side_effect=[
+                MagicMock(),  # _find_3mf_by_filename: library search
+                MagicMock(),  # _find_3mf_by_filename: archive search
+                MagicMock(scalar_one_or_none=MagicMock(return_value=assignment_a)),
+                MagicMock(scalar_one_or_none=MagicMock(return_value=spool)),
+                MagicMock(scalar_one_or_none=MagicMock(return_value=assignment_b)),
+                MagicMock(scalar_one_or_none=MagicMock(return_value=spool)),
+            ]
+        )
+
+        results = await on_print_complete(1, {"status": "completed"}, pm, db)
+
+        assert len(results) == 2
+        assert sum(row["weight_used"] for row in results) == 200.0
+        assert spool.weight_used == 250.0
+
+    @pytest.mark.asyncio
     async def test_skips_negative_delta(self):
         """No tracking when remain increased (spool refilled)."""
         _active_sessions[1] = PrintSession(
