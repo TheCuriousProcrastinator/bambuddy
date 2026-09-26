@@ -86,12 +86,11 @@ async def test_merge_duplicate_into_existing_fcode_keeps_target_stock(
     missing_source = await async_client.get(f"/api/v1/inventory/spools/{source.id}")
     assert missing_source.status_code == 404
 
-    moved_usage = (
-        await db_session.execute(
-            select(SpoolUsageHistory).where(SpoolUsageHistory.id == usage.id)
-        )
-    ).scalar_one()
-    assert moved_usage.spool_id == target.id
+    # The API request uses its own session. This fixture session has
+    # expire_on_commit=False and still holds the pre-request usage row in its
+    # identity map, so force a database refresh before asserting the merge.
+    await db_session.refresh(usage)
+    assert usage.spool_id == target.id
 
     assignments = await async_client.get("/api/v1/inventory/assignments")
     target_slots = [
