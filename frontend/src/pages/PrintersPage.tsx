@@ -5611,7 +5611,7 @@ function PrinterCard({
                                           ? 'border-bambu-green/40 bg-bambu-green/10 text-bambu-green hover:bg-bambu-green/20'
                                           : 'border-bambu-dark-tertiary bg-bambu-dark text-bambu-gray hover:text-white hover:border-bambu-gray'
                                       }`}
-                                      title={slotFilamentCode ? `Change filament code ${slotFilamentCode}` : 'Assign filament code'}
+                                      title={slotFilamentCode ? `${t('inventory.assignSpool')}: ${slotFilamentCode}` : t('inventory.assignSpool')}
                                     >
                                       {slotFilamentCode ?? 'F----'}
                                     </button>
