@@ -255,7 +255,7 @@ describe('InventoryPage - deep-link ?spool= flow', () => {
   describe('shared inventory locations', () => {
     beforeEach(() => {
       window.history.replaceState({}, '', '/');
-      setupCommonHandlers([{ ...BASE_SPOOL, note: 'F0001' }]);
+      setupCommonHandlers([{ ...BASE_SPOOL, stock_code: 'F0001', note: null }]);
       server.use(
         http.get('/api/v1/inventory/assignments', () => HttpResponse.json([
           {
