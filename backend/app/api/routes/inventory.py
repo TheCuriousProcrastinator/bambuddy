@@ -1608,7 +1608,7 @@ async def merge_spool_into_existing_fcode(
         if key in target_k_keys:
             await db.delete(row)
         else:
-            row.spool_id = target.id
+            row.spool = target
             target_k_keys.add(key)
 
     # This table has a UNIQUE constraint on (spool, model, nozzle), so target
@@ -1622,7 +1622,7 @@ async def merge_spool_into_existing_fcode(
         if key in target_preset_keys:
             await db.delete(row)
         else:
-            row.spool_id = target.id
+            row.spool = target
             target_preset_keys.add(key)
 
     if source.last_used and (target.last_used is None or source.last_used > target.last_used):
