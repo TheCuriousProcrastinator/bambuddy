@@ -5606,9 +5606,9 @@ function PrinterCard({
                                           },
                                         });
                                       }}
-                                      className={`mx-auto mt-0.5 px-1.5 py-px rounded border font-mono text-[length:var(--pc-t8,8px)] leading-none transition-colors ${
+                                      className={`mx-auto mt-1 min-w-[4.25rem] px-2.5 py-1 rounded-md border-2 font-mono text-xs font-semibold tracking-wide leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bambu-green/60 ${
                                         slotFilamentCode
-                                          ? 'border-bambu-green/40 bg-bambu-green/10 text-bambu-green hover:bg-bambu-green/20'
+                                          ? 'border-bambu-green/50 bg-bambu-green/10 text-bambu-green hover:bg-bambu-green/20'
                                           : 'border-bambu-dark-tertiary bg-bambu-dark text-bambu-gray hover:text-white hover:border-bambu-gray'
                                       }`}
                                       title={slotFilamentCode ? `${t('inventory.assignSpool')}: ${slotFilamentCode}` : t('inventory.assignSpool')}
