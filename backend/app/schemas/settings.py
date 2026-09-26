@@ -645,6 +645,15 @@ class AppSettings(BaseModel):
         description="JSON object with 'order' key containing array of sidebar item IDs (empty = no default)",
     )
 
+    # Instance-wide Inventory table column order/visibility. Stored on the
+    # backend so the same layout follows the installation across browsers.
+    # JSON contains only stable column IDs + visibility; display labels remain
+    # frontend-owned so renames and newly-added columns merge cleanly.
+    inventory_column_config: str = Field(
+        default="",
+        description="JSON array of Inventory table column IDs and visibility (empty = browser/default layout)",
+    )
+
 
 class AppSettingsUpdate(BaseModel):
     """Schema for updating settings (all fields optional)."""
@@ -781,6 +790,7 @@ class AppSettingsUpdate(BaseModel):
     obico_poll_interval: int | None = Field(default=None, ge=5, le=120)
     obico_enabled_printers: str | None = None
     default_sidebar_order: str | None = None
+    inventory_column_config: str | None = None
     forecast_global_lead_time_days: int | None = Field(default=None, ge=0)
     location_sensor_poll_interval: int | None = Field(default=None, ge=60, le=3600)
     # Three categories × three short fields is well under 300 characters of
