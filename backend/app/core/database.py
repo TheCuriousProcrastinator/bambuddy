@@ -700,12 +700,7 @@ async def _table_column_exists(conn, table_name: str, column_name: str) -> bool:
 
 
 async def _api_keys_column_exists(conn, column_name: str) -> bool:
-    """Return True if the named column exists on ``api_keys``.
-
-    Used to gate one-shot data backfills that must run only on the migration
-    that adds a column — without this, repeating the UPDATE on every startup
-    would silently overwrite values the user later edited in the UI.
-    """
+    """Return True if the named column exists on ``api_keys``."""
     return await _table_column_exists(conn, "api_keys", column_name)
 
 
@@ -3038,10 +3033,9 @@ async def run_migrations(conn):
     # Migration: Add user-editable storage location to spool table
     await _safe_execute(conn, "ALTER TABLE spool ADD COLUMN storage_location VARCHAR(255)")
 
-    # Dedicated aggregate-stock code (F0001, F0002, ...). The custom inventory
-    # workflow originally stored these in ``spool.note``. Move those exact
-    # legacy values once, when the new column is introduced, so Note becomes
-    # free-form again and future restarts never reinterpret a real note.
+    # Dedicated aggregate-stock code (F0001, F0002, ...). Older custom builds
+    # stored these exact values in spool.note. Migrate them only when this
+    # column is introduced, then leave Note free-form forever after.
     stock_code_existed = await _table_column_exists(conn, "spool", "stock_code")
     await _safe_execute(conn, "ALTER TABLE spool ADD COLUMN stock_code VARCHAR(5)")
     if not stock_code_existed:
