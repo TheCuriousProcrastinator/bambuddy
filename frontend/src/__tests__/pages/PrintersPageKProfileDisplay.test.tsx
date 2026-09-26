@@ -164,10 +164,10 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
     render(<PrintersPage />);
 
     const codeButton = await screen.findByRole('button', { name: 'F0008' });
-    expect(codeButton).toHaveAttribute('title', 'Change filament code F0008');
+    expect(codeButton).toHaveAttribute('title', 'Assign Spool: F0008');
 
     await user.click(codeButton);
-    expect(await screen.findByText('F-code')).toBeInTheDocument();
+    expect(await screen.findByText('Assign Spool')).toBeInTheDocument();
   });
 
   it('does not show a K-value on an empty slot', async () => {
