@@ -55,6 +55,70 @@ def _make_mock_status(ams_data=None, vt_tray=None, nozzles=None, ams_extruder_ma
     return status
 
 
+class TestSharedFCodeStock:
+    """One inventory stock record may intentionally back several AMS slots."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_shared_spool_assignments_skip_absolute_ams_weight_sync(
+        self, async_client: AsyncClient, printer_factory, spool_factory
+    ):
+        printer = await printer_factory(name="P1S")
+        spool = await spool_factory(
+            slicer_filament="GFL99",
+            material="PLA",
+            note="F0012",
+            label_weight=2000,
+            weight_used=0,
+        )
+
+        mock_client = MagicMock()
+        mock_client.ams_set_filament_setting.return_value = True
+        mock_client.extrusion_cali_sel.return_value = True
+        status = _make_mock_status(
+            ams_data=[
+                {
+                    "id": 0,
+                    "tray": [
+                        {"id": 0, "tray_type": "PLA", "tray_info_idx": "GFL99", "remain": 90},
+                        {"id": 1, "tray_type": "PLA", "tray_info_idx": "GFL99", "remain": 50},
+                    ],
+                }
+            ]
+        )
+
+        with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_client.return_value = mock_client
+            mock_pm.get_status.return_value = status
+
+            first = await async_client.post(
+                "/api/v1/inventory/assignments",
+                json={"spool_id": spool.id, "printer_id": printer.id, "ams_id": 0, "tray_id": 0},
+            )
+            second = await async_client.post(
+                "/api/v1/inventory/assignments",
+                json={"spool_id": spool.id, "printer_id": printer.id, "ams_id": 0, "tray_id": 1},
+            )
+            assert first.status_code == 200
+            assert second.status_code == 200
+
+            assignments = await async_client.get("/api/v1/inventory/assignments")
+            assert assignments.status_code == 200
+            shared = [row for row in assignments.json() if row["spool_id"] == spool.id]
+            assert {(row["ams_id"], row["tray_id"]) for row in shared} == {(0, 0), (0, 1)}
+
+            # Per-slot remain percentages cannot represent the aggregate 2 kg
+            # F-code stock. Manual AMS sync therefore skips the shared record;
+            # usage_tracker is the source that subtracts actual print grams.
+            synced = await async_client.post("/api/v1/inventory/sync-ams-weights")
+            assert synced.status_code == 200
+            assert synced.json()["synced"] == 0
+
+            stored = await async_client.get(f"/api/v1/inventory/spools/{spool.id}")
+            assert stored.status_code == 200
+            assert stored.json()["weight_used"] == 0
+
+
 class TestAssignSpoolTrayInfoIdx:
     """Tests for tray_info_idx resolution during spool assignment."""
 
