@@ -119,6 +119,54 @@ class TestSharedFCodeStock:
             assert stored.json()["weight_used"] == 0
 
 
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_single_slot_fcode_skips_absolute_ams_weight_sync(
+        self, async_client: AsyncClient, printer_factory, spool_factory
+    ):
+        """F-code rows are aggregate stock buckets even when only one slot uses them."""
+        printer = await printer_factory(name="P1S")
+        spool = await spool_factory(
+            slicer_filament="GFL99",
+            material="PLA",
+            note="F0012",
+            label_weight=1000,
+            weight_used=100,
+        )
+
+        mock_client = MagicMock()
+        mock_client.ams_set_filament_setting.return_value = True
+        mock_client.extrusion_cali_sel.return_value = True
+        status = _make_mock_status(
+            ams_data=[
+                {
+                    "id": 0,
+                    "tray": [
+                        {"id": 0, "tray_type": "PLA", "tray_info_idx": "GFL99", "remain": 50},
+                    ],
+                }
+            ]
+        )
+
+        with patch("backend.app.services.printer_manager.printer_manager") as mock_pm:
+            mock_pm.get_client.return_value = mock_client
+            mock_pm.get_status.return_value = status
+
+            assigned = await async_client.post(
+                "/api/v1/inventory/assignments",
+                json={"spool_id": spool.id, "printer_id": printer.id, "ams_id": 0, "tray_id": 0},
+            )
+            assert assigned.status_code == 200
+
+            synced = await async_client.post("/api/v1/inventory/sync-ams-weights")
+            assert synced.status_code == 200
+            assert synced.json()["synced"] == 0
+
+            stored = await async_client.get(f"/api/v1/inventory/spools/{spool.id}")
+            assert stored.status_code == 200
+            assert stored.json()["weight_used"] == 100
+
+
 class TestAssignSpoolTrayInfoIdx:
     """Tests for tray_info_idx resolution during spool assignment."""
 
