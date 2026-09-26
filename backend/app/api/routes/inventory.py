@@ -1581,6 +1581,20 @@ async def merge_spool_into_existing_fcode(
     if _inventory_fcode(target.note) != code:
         raise HTTPException(409, f"Target spool is no longer {code}")
 
+    # A typo must not silently delete a different filament row. Material is
+    # required on every spool; the other identity fields only block when both
+    # rows actually carry a value, so older/incomplete rows can still merge.
+    if source.material.strip().casefold() != target.material.strip().casefold():
+        raise HTTPException(409, f"{code} belongs to a different material")
+
+    for label, source_value, target_value in (
+        ("subtype", source.subtype, target.subtype),
+        ("brand", source.brand, target.brand),
+        ("color", source.rgba, target.rgba),
+    ):
+        if source_value and target_value and source_value.strip().casefold() != target_value.strip().casefold():
+            raise HTTPException(409, f"{code} belongs to a different {label}")
+
     # Merging an assigned source during an active/possible print can invalidate
     # the usage tracker's print-start spool snapshot. The printer-page F-code
     # picker is the safe way to move a live slot to the aggregate bucket first.
