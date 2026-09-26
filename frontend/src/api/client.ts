@@ -1473,6 +1473,8 @@ export interface AppSettings {
   // Server-backed so two admins seed the same alert rules and a restore
   // brings them back; see utils/locationSensorDefaults.ts.
   location_sensor_alert_defaults: string;
+  // Server-backed Inventory table column order/visibility.
+  inventory_column_config: string;
 }
 
 export type AppSettingsUpdate = Partial<AppSettings>;
