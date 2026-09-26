@@ -165,7 +165,7 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
 
     const codeButton = await screen.findByRole('button', { name: 'F0008' });
     expect(codeButton).toHaveAttribute('title', 'Assign Spool: F0008');
-    expect(codeButton).toHaveClass('text-xs', 'min-w-[4.25rem]', 'px-2.5', 'py-1');
+    expect(codeButton).toHaveClass('text-sm', 'min-w-[5rem]', 'px-3', 'py-1.5');
 
     await user.click(codeButton);
     expect(await screen.findByText('Assign Spool')).toBeInTheDocument();
