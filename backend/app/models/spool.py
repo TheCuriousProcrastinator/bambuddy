@@ -44,6 +44,10 @@ class Spool(Base):
     slicer_filament_name: Mapped[str | None] = mapped_column(String(100))  # Preset name for slicer
     nozzle_temp_min: Mapped[int | None] = mapped_column()  # Override min temp
     nozzle_temp_max: Mapped[int | None] = mapped_column()  # Override max temp
+    # User-facing aggregate inventory identifier, e.g. F0001. This is
+    # deliberately separate from note: F-codes drive stock-bucket behavior,
+    # while note remains free-form user text.
+    stock_code: Mapped[str | None] = mapped_column(String(5))
     note: Mapped[str | None] = mapped_column(String(500))
     added_full: Mapped[bool | None] = mapped_column()  # Whether spool was added as full (unused)
 
