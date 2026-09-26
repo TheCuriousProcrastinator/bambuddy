@@ -179,6 +179,8 @@ export interface FilamentSectionProps extends SectionProps {
   suggestedBrands: string[];
   suggestedMaterials: string[];
   quickAdd: boolean;
+  // Dedicated local-inventory stock IDs are not supported by Spoolman.
+  stockCodeEnabled: boolean;
   // Whether preset/brand/subtype are mandatory for this submission — see
   // validateForm. Drives the " *" markers so the form never advertises a
   // requirement it won't enforce (#1905).
