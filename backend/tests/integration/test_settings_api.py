@@ -43,6 +43,24 @@ class TestSettingsAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_inventory_column_config_round_trips(self, async_client: AsyncClient):
+        """Inventory table layout is stored in backend settings so it follows
+        the installation across browsers."""
+        layout = '[{"id":"material","visible":true},{"id":"remaining","visible":false}]'
+
+        update = await async_client.put(
+            "/api/v1/settings/",
+            json={"inventory_column_config": layout},
+        )
+        assert update.status_code == 200
+        assert update.json()["inventory_column_config"] == layout
+
+        readback = await async_client.get("/api/v1/settings/")
+        assert readback.status_code == 200
+        assert readback.json()["inventory_column_config"] == layout
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_unset_temp_alarm_reads_back_as_null(self, async_client: AsyncClient, db_session):
         """#2905: ams_temp_alarm is nullable, and settings storage stringifies
         None to the literal "None".
