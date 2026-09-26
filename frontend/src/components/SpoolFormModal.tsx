@@ -389,6 +389,10 @@ export function SpoolFormModal({
         // first being forced to fix a color they may not even be aware is
         // broken. Saving also purges the bad value from the DB.
         const validRgba = spool.rgba && /^[0-9A-Fa-f]{8}$/.test(spool.rgba) ? spool.rgba : '808080FF';
+        const legacyStockCode =
+          !spool.stock_code && /^F\d{4}$/i.test(spool.note?.trim() || '')
+            ? spool.note!.trim().toUpperCase()
+            : '';
         setFormData({
           material: spool.material || '',
           subtype: spool.subtype || '',
@@ -406,7 +410,8 @@ export function SpoolFormModal({
           core_weight_catalog_id: spool.core_weight_catalog_id ?? null,
           weight_used: isCopying ? 0 : spool.weight_used || 0,
           slicer_filament: spool.slicer_filament || '',
-          note: spool.note || '',
+          stock_code: isCopying ? '' : (spool.stock_code || legacyStockCode),
+          note: legacyStockCode ? '' : (spool.note || ''),
           cost_per_kg: spool.cost_per_kg ?? null,
           category: spool.category || '',
           low_stock_threshold_pct: spool.low_stock_threshold_pct ?? null,
@@ -663,6 +668,22 @@ export function SpoolFormModal({
     },
   });
 
+  const mergeStockCodeMutation = useMutation({
+    mutationFn: ({ targetId, code }: { targetId: number; code: string }) =>
+      api.mergeSpoolIntoFCode(spool!.id, targetId, code),
+    onSuccess: async (mergedSpool) => {
+      await Promise.all([
+        refreshSpoolQueries(),
+        queryClient.invalidateQueries({ queryKey: ['spool-assignments'] }),
+      ]);
+      showToast(`Merged into ${mergedSpool.stock_code || 'existing inventory ID'}. Existing stock weight was kept.`, 'success');
+      onClose();
+    },
+    onError: (error: Error) => {
+      showToast(error.message || t('inventory.saveFailed'), 'error');
+    },
+  });
+
   const deleteTagMutation = useMutation({
     mutationFn: () => {
       if (spoolmanMode) {
@@ -869,6 +890,7 @@ export function SpoolFormModal({
       slicer_filament_name: presetName,
       nozzle_temp_min: null,
       nozzle_temp_max: null,
+      ...(spoolmanMode ? {} : { stock_code: formData.stock_code.trim().toUpperCase() || null }),
       note: formData.note || null,
       cost_per_kg: formData.cost_per_kg,
       category: formData.category.trim() || null,
@@ -888,6 +910,32 @@ export function SpoolFormModal({
       data.location_id = formData.location_id;
     }
 
+    const stockCode = formData.stock_code.trim().toUpperCase();
+    if (!spoolmanMode && stockCode) {
+      const currentCode = (
+        spool?.stock_code ||
+        (/^F\d{4}$/i.test(spool?.note?.trim() || '') ? spool!.note!.trim() : '')
+      ).toUpperCase();
+      const existingTarget = (allSpools ?? []).find((candidate) => {
+        if (candidate.id === spool?.id || candidate.archived_at) return false;
+        const candidateCode = (
+          candidate.stock_code ||
+          (/^F\d{4}$/i.test(candidate.note?.trim() || '') ? candidate.note!.trim() : '')
+        ).toUpperCase();
+        return candidateCode === stockCode;
+      });
+
+      if (isEditing && existingTarget && stockCode !== currentCode) {
+        mergeStockCodeMutation.mutate({ targetId: existingTarget.id, code: stockCode });
+        return;
+      }
+
+      if (!isEditing && existingTarget) {
+        showToast(`Inventory ID ${stockCode} already exists. Edit the existing row instead.`, 'error');
+        return;
+      }
+    }
+
     if (isEditing) {
       updateMutation.mutate(data);
     } else if (quantity > 1) {
@@ -897,7 +945,7 @@ export function SpoolFormModal({
     }
   };
 
-  const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || deleteTagMutation.isPending || unassignMutation.isPending;
+  const isPending = createMutation.isPending || bulkCreateMutation.isPending || updateMutation.isPending || mergeStockCodeMutation.isPending || deleteTagMutation.isPending || unassignMutation.isPending;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
