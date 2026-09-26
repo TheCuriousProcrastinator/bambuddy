@@ -33,8 +33,8 @@ interface AssignSpoolModalProps {
 
 const FILAMENT_CODE_RE = /^F\d{4}$/;
 
-function filamentCode(note: string | null | undefined): string | null {
-  const value = note?.trim().toUpperCase() ?? '';
+function filamentCode(spool: InventorySpool | null | undefined): string | null {
+  const value = (spool?.stock_code || spool?.note || '').trim().toUpperCase();
   return FILAMENT_CODE_RE.test(value) ? value : null;
 }
 
@@ -275,7 +275,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   // for normal flows but exactly the recovery path the toggle is for.
   const availableSpools = spools?.filter((spool: InventorySpool) =>
     !spool.archived_at &&
-    (!filamentCodeMode || (filamentCode(spool.note) !== null && remainingGrams(spool) > 0)) &&
+    (!filamentCodeMode || (filamentCode(spool) !== null && remainingGrams(spool) > 0)) &&
     (filamentCodeMode || disableFiltering || !assignedSpoolIds.has(spool.id))
   );
 
@@ -447,9 +447,9 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                         : 'bg-bambu-dark border-bambu-dark-tertiary hover:border-bambu-gray'
                     } ${filamentCodeMode && (assignMutation.isPending || assignSpoolmanMutation.isPending) ? 'opacity-60 cursor-wait' : ''}`}
                   >
-                    {filamentCodeMode && filamentCode(spool.note) && (
+                    {filamentCodeMode && filamentCode(spool) && (
                       <p className="text-xs font-mono font-semibold text-bambu-green mb-1">
-                        {filamentCode(spool.note)}
+                        {filamentCode(spool)}
                       </p>
                     )}
                     <p className="text-white text-sm font-medium truncate">
@@ -513,7 +513,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                   </div>
                 ) : spoolmanSpools && spoolmanSpools.filter(s =>
                   !s.archived_at &&
-                  (!filamentCodeMode || (filamentCode(s.note) !== null && remainingGrams(s) > 0)) &&
+                  (!filamentCodeMode || (filamentCode(s) !== null && remainingGrams(s) > 0)) &&
                   (filamentCodeMode || !assignedSpoolmanSpoolIds.has(s.id))
                 ).length > 0 ? (
                   <>
@@ -523,7 +523,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                     <div className="max-h-64 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {filterSpoolsByQuery(spoolmanSpools.filter(s =>
                         !s.archived_at &&
-                        (!filamentCodeMode || (filamentCode(s.note) !== null && remainingGrams(s) > 0)) &&
+                        (!filamentCodeMode || (filamentCode(s) !== null && remainingGrams(s) > 0)) &&
                         (filamentCodeMode || !assignedSpoolmanSpoolIds.has(s.id))
                       ), searchFilter)
                         .map((spool: InventorySpool) => (
@@ -542,9 +542,9 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                                 : 'bg-bambu-dark border-bambu-dark-tertiary hover:border-bambu-gray'
                             }`}
                           >
-                            {filamentCodeMode && filamentCode(spool.note) && (
+                            {filamentCodeMode && filamentCode(spool) && (
                               <p className="text-xs font-mono font-semibold text-bambu-green mb-1">
-                                {filamentCode(spool.note)}
+                                {filamentCode(spool)}
                               </p>
                             )}
                             <p className="text-white text-sm font-medium truncate">
