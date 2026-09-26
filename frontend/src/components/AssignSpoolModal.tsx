@@ -24,9 +24,25 @@ interface AssignSpoolModalProps {
     location: string;
   };
   spoolmanEnabled?: boolean;
+  // Compact F-code picker used directly from an AMS slot card. In this mode
+  // the inventory row itself is the action: only coded spools with filament
+  // remaining are shown, the same spool may be assigned to multiple slots,
+  // and clicking a spool assigns it immediately.
+  filamentCodeMode?: boolean;
 }
 
-export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, trayInfo, spoolmanEnabled }: AssignSpoolModalProps) {
+const FILAMENT_CODE_RE = /^F\d{4}$/;
+
+function filamentCode(note: string | null | undefined): string | null {
+  const value = note?.trim().toUpperCase() ?? '';
+  return FILAMENT_CODE_RE.test(value) ? value : null;
+}
+
+function remainingGrams(spool: InventorySpool): number {
+  return Math.max(0, (spool.label_weight ?? 0) - (spool.weight_used ?? 0));
+}
+
+export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, trayInfo, spoolmanEnabled, filamentCodeMode = false }: AssignSpoolModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -259,7 +275,8 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   // for normal flows but exactly the recovery path the toggle is for.
   const availableSpools = spools?.filter((spool: InventorySpool) =>
     !spool.archived_at &&
-    (disableFiltering || !assignedSpoolIds.has(spool.id))
+    (!filamentCodeMode || (filamentCode(spool.note) !== null && remainingGrams(spool) > 0)) &&
+    (filamentCodeMode || disableFiltering || !assignedSpoolIds.has(spool.id))
   );
 
   // Filtering logic with toggle: search filter always applies, AMS tray profile filter is optional.
@@ -268,7 +285,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
   // vice versa). Manually-added inventory spools typically have no slicer_filament_name; gating
   // on strict profile equality alone hid them even when the material matched (#1047).
   let filteredSpools = availableSpools;
-  if (!disableFiltering) {
+  if (!filamentCodeMode && !disableFiltering) {
     const trayProfile = stripProfileQualifier(normalizeValue(trayInfo?.profile));
     const trayMaterial = normalizeValue(trayInfo?.material || trayInfo?.type);
     if (trayProfile || trayMaterial) {
@@ -292,13 +309,8 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
     filteredSpools = filterSpoolsByQuery(filteredSpools, searchFilter);
   }
 
-  const handleAssign = () => {
-    if (selectedSpoolmanSpoolId !== null) {
-      assignSpoolmanMutation.mutate(selectedSpoolmanSpoolId);
-      return;
-    }
-    if (!selectedSpoolId) return;
-    const selectedSpool = spools?.find((spool: InventorySpool) => spool.id === selectedSpoolId);
+  const assignLocalSpool = (spoolId: number) => {
+    const selectedSpool = spools?.find((spool: InventorySpool) => spool.id === spoolId);
     if (!selectedSpool) {
       showToast(t('inventory.assignFailed'), 'error');
       return;
@@ -326,7 +338,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
           mismatchType = 'partial';
         }
 
-        setPendingAssignId(selectedSpoolId);
+        setPendingAssignId(spoolId);
         setMismatchDetails({
           type: mismatchType,
           spoolMaterial: selectedSpool.material || '',
@@ -338,7 +350,16 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
         return;
       }
     }
-    assignMutation.mutate(selectedSpoolId);
+    assignMutation.mutate(spoolId);
+  };
+
+  const handleAssign = () => {
+    if (selectedSpoolmanSpoolId !== null) {
+      assignSpoolmanMutation.mutate(selectedSpoolmanSpoolId);
+      return;
+    }
+    if (selectedSpoolId === null) return;
+    assignLocalSpool(selectedSpoolId);
   };
 
   const handleConfirmMismatch = () => {
@@ -362,6 +383,11 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-bambu-green" />
             <h2 className="text-lg font-semibold text-white">{t('inventory.assignSpool')}</h2>
+            {filamentCodeMode && (
+              <span className="px-1.5 py-0.5 rounded border border-bambu-green/40 bg-bambu-green/10 text-[10px] font-mono font-semibold text-bambu-green">
+                F-code
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -413,14 +439,24 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                 {filteredSpools.map((spool: InventorySpool) => (
                   <button
                     key={spool.id}
-                    onClick={() => { setSelectedSpoolId(spool.id); setSelectedSpoolmanSpoolId(null); }}
+                    onClick={() => {
+                      setSelectedSpoolId(spool.id);
+                      setSelectedSpoolmanSpoolId(null);
+                      if (filamentCodeMode) assignLocalSpool(spool.id);
+                    }}
+                    disabled={filamentCodeMode && (assignMutation.isPending || assignSpoolmanMutation.isPending)}
                     title={spool.note || undefined}
                     className={`p-2.5 rounded-lg border text-left transition-colors ${
                       selectedSpoolId === spool.id
                         ? 'bg-bambu-green/20 border-bambu-green'
                         : 'bg-bambu-dark border-bambu-dark-tertiary hover:border-bambu-gray'
-                    }`}
+                    } ${filamentCodeMode && (assignMutation.isPending || assignSpoolmanMutation.isPending) ? 'opacity-60 cursor-wait' : ''}`}
                   >
+                    {filamentCodeMode && filamentCode(spool.note) && (
+                      <p className="text-xs font-mono font-semibold text-bambu-green mb-1">
+                        {filamentCode(spool.note)}
+                      </p>
+                    )}
                     <p className="text-white text-sm font-medium truncate">
                       {spool.brand ? `${spool.brand} ` : ''}{spool.material}{spool.subtype ? ` ${spool.subtype}` : ''}
                     </p>
@@ -438,7 +474,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                         {Math.max(0, Math.round(spool.label_weight - spool.weight_used))} / {spool.label_weight}g
                       </p>
                     )}
-                    {spool.note && (
+                    {spool.note && !filamentCodeMode && (
                       <p className="text-[10px] text-bambu-gray/70 mt-1 truncate" title={spool.note}>
                         {spool.note}
                       </p>
@@ -480,20 +516,30 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                   <div className="flex justify-center py-4">
                     <Loader2 className="w-5 h-5 text-bambu-green animate-spin" />
                   </div>
-                ) : spoolmanSpools && spoolmanSpools.filter(s => !s.archived_at && !assignedSpoolmanSpoolIds.has(s.id)).length > 0 ? (
+                ) : spoolmanSpools && spoolmanSpools.filter(s =>
+                  !s.archived_at &&
+                  (!filamentCodeMode || (filamentCode(s.note) !== null && remainingGrams(s) > 0)) &&
+                  (filamentCodeMode || !assignedSpoolmanSpoolIds.has(s.id))
+                ).length > 0 ? (
                   <>
                     <p className="text-xs font-medium text-bambu-gray uppercase tracking-wide pt-1">
                       {t('inventory.spoolmanSpools')}
                     </p>
                     <div className="max-h-64 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {filterSpoolsByQuery(spoolmanSpools.filter(s => !s.archived_at && !assignedSpoolmanSpoolIds.has(s.id)), searchFilter)
+                      {filterSpoolsByQuery(spoolmanSpools.filter(s =>
+                        !s.archived_at &&
+                        (!filamentCodeMode || (filamentCode(s.note) !== null && remainingGrams(s) > 0)) &&
+                        (filamentCodeMode || !assignedSpoolmanSpoolIds.has(s.id))
+                      ), searchFilter)
                         .map((spool: InventorySpool) => (
                           <button
                             key={`spoolman-${spool.id}`}
                             onClick={() => {
                               setSelectedSpoolmanSpoolId(spool.id);
                               setSelectedSpoolId(null);
+                              if (filamentCodeMode) assignSpoolmanMutation.mutate(spool.id);
                             }}
+                            disabled={filamentCodeMode && (assignMutation.isPending || assignSpoolmanMutation.isPending)}
                             title={spool.note || undefined}
                             className={`p-2.5 rounded-lg border text-left transition-colors ${
                               selectedSpoolmanSpoolId === spool.id
@@ -533,40 +579,45 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
           </div>
         </div>
 
-        {/* Footer with filtering toggle */}
-        <div className="flex justify-between items-center p-4 border-t border-bambu-dark-tertiary">
-          <div className="flex items-center gap-2">
-            <input
-              id="disable-filtering-toggle"
-              type="checkbox"
-              checked={disableFiltering}
-              onChange={() => setDisableFiltering(v => !v)}
-              className="accent-bambu-green w-4 h-4 rounded focus:ring-0 border-bambu-dark-tertiary"
-            />
-            <label htmlFor="disable-filtering-toggle" className="text-xs text-bambu-gray select-none cursor-pointer">
-              {t('inventory.showAllSpools')}
-            </label>
-          </div>
+        {/* Footer with filtering toggle. F-code mode is one-click, so it only
+            needs Cancel; the list itself is the assign action. */}
+        <div className={`flex items-center p-4 border-t border-bambu-dark-tertiary ${filamentCodeMode ? 'justify-end' : 'justify-between'}`}>
+          {!filamentCodeMode && (
+            <div className="flex items-center gap-2">
+              <input
+                id="disable-filtering-toggle"
+                type="checkbox"
+                checked={disableFiltering}
+                onChange={() => setDisableFiltering(v => !v)}
+                className="accent-bambu-green w-4 h-4 rounded focus:ring-0 border-bambu-dark-tertiary"
+              />
+              <label htmlFor="disable-filtering-toggle" className="text-xs text-bambu-gray select-none cursor-pointer">
+                {t('inventory.showAllSpools')}
+              </label>
+            </div>
+          )}
           <div className="flex gap-2">
             <Button variant="secondary" onClick={onClose}>
               {t('common.cancel')}
             </Button>
-            <Button
-              onClick={handleAssign}
-              disabled={(!selectedSpoolId && selectedSpoolmanSpoolId === null) || assignMutation.isPending || assignSpoolmanMutation.isPending}
-            >
-              {(assignMutation.isPending || assignSpoolmanMutation.isPending) ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {t('inventory.assigning')}
-                </>
-              ) : (
-                <>
-                  <Package className="w-4 h-4" />
-                  {t('inventory.assignSpool')}
-                </>
-              )}
-            </Button>
+            {!filamentCodeMode && (
+              <Button
+                onClick={handleAssign}
+                disabled={(selectedSpoolId === null && selectedSpoolmanSpoolId === null) || assignMutation.isPending || assignSpoolmanMutation.isPending}
+              >
+                {(assignMutation.isPending || assignSpoolmanMutation.isPending) ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t('inventory.assigning')}
+                  </>
+                ) : (
+                  <>
+                    <Package className="w-4 h-4" />
+                    {t('inventory.assignSpool')}
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
 
