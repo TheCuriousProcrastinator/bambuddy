@@ -1091,6 +1091,7 @@ export function SpoolFormModal({
                   suggestedBrands={suggestedBrands}
                   suggestedMaterials={suggestedMaterials}
                   quickAdd={quickAdd}
+                  stockCodeEnabled={!spoolmanMode}
                   detailsRequired={!quickAdd && !spoolmanMode && mode === 'create'}
                   quantity={quantity}
                   onQuantityChange={setQuantity}
