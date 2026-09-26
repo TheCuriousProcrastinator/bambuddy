@@ -681,7 +681,13 @@ async def _table_column_exists(conn, table_name: str, column_name: str) -> bool:
     from sqlalchemy import text
 
     if is_sqlite():
-        result = await conn.execute(text(f"PRAGMA table_info({table_name})"))
+        pragma = {
+            "api_keys": "PRAGMA table_info(api_keys)",
+            "spool": "PRAGMA table_info(spool)",
+        }.get(table_name)
+        if pragma is None:
+            raise ValueError(f"Unsupported migration table: {table_name}")
+        result = await conn.execute(text(pragma))
         return any(row[1] == column_name for row in result)
     result = await conn.execute(
         text(
