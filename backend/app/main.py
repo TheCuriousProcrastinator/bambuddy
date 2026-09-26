@@ -2295,7 +2295,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
     # bug stayed latent there. See _ams_assignment_locks comment for details.
     try:
         async with _get_ams_assignment_lock(printer_id), async_session() as db:
-            from backend.app.api.routes.inventory import _inventory_fcode, _spool_is_shared_across_slots
+            from backend.app.api.routes.inventory import _spool_fcode, _spool_is_shared_across_slots
             from backend.app.api.routes.settings import get_setting
             from backend.app.models.spool import Spool
             from backend.app.models.spool_assignment import SpoolAssignment as SA
@@ -2349,7 +2349,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
                             remain_raw = tray.get("remain")
                             fcode_stock = (
                                 existing_assignment.spool is not None
-                                and _inventory_fcode(existing_assignment.spool.note) is not None
+                                and _spool_fcode(existing_assignment.spool) is not None
                             )
                             shared_stock = (
                                 existing_assignment.spool is not None
