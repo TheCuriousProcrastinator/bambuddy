@@ -931,6 +931,7 @@ function NewSpoolTouchForm({ currencySymbol, onCreated, selectedSpool, spoolmanM
               suggestedBrands={suggestedBrands}
               suggestedMaterials={suggestedMaterials}
               quickAdd={quickAdd}
+              stockCodeEnabled={!spoolmanMode}
               detailsRequired={!quickAdd}
               quantity={quantity}
               onQuantityChange={setQuantity}
