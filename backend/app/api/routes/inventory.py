@@ -1628,6 +1628,11 @@ async def merge_spool_into_existing_fcode(
     if source.last_used and (target.last_used is None or source.last_used > target.last_used):
         target.last_used = source.last_used
 
+    # Flush reparented history/metadata before deleting the source. Usage
+    # history has no ORM relationship on Spool, so relying on flush ordering
+    # here could let the FK cascade delete history before its UPDATE runs.
+    await db.flush()
+
     # Deliberately do not touch target.label_weight or target.weight_used.
     await db.delete(source)
     await db.commit()
