@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, Disc3, ShieldAlert, Globe, Bell, Receipt, type LucideIcon } from 'lucide-react';
+import { Printer, Archive, ListOrdered, BarChart3, Cloud, Settings, Sun, Moon, Monitor, ChevronLeft, ChevronRight, Keyboard, Github, ArrowUpCircle, Wrench, FolderKanban, FolderOpen, X, Menu, Info, Plug, Bug, LogOut, Key, Loader2, Disc3, Globe, Bell, Receipt, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
@@ -222,15 +222,6 @@ export function Layout() {
     queryFn: supportApi.getDebugLoggingState,
     staleTime: 60 * 1000, // 1 minute
     refetchInterval: 60 * 1000, // Refresh every minute
-  });
-
-  // Check developer LAN mode warnings
-  const { data: devModeWarnings } = useQuery({
-    queryKey: ['developer-mode-warnings'],
-    queryFn: api.getDeveloperModeWarnings,
-    staleTime: 10 * 1000,
-    refetchInterval: 30 * 1000,
-    refetchOnWindowFocus: true,
   });
 
   // Fetch pending queue items count for badge
@@ -907,24 +898,6 @@ export function Layout() {
               >
                 {t('support.manageLogs', { defaultValue: 'Manage' })}
               </button>
-            </div>
-          </div>
-        )}
-        {devModeWarnings && devModeWarnings.length > 0 && (
-          <div className="bg-orange-100 dark:bg-orange-500/20 border-b border-orange-300 dark:border-orange-500/30 px-4 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <ShieldAlert className="w-4 h-4 text-orange-500" />
-              <span className="text-orange-800 dark:text-orange-200">
-                {t('printers.developerModeWarning', {
-                  names: devModeWarnings.map(w => w.name).join(', '),
-                  defaultValue: `Developer LAN mode is not enabled on: ${devModeWarnings.map(w => w.name).join(', ')}. Some features may not work.`
-                })}
-              </span>
-              <a href="https://wiki.bambulab.com/en/knowledge-sharing/enable-developer-mode"
-                 target="_blank" rel="noopener noreferrer"
-                 className="text-orange-700 dark:text-orange-400 hover:text-orange-900 dark:hover:text-orange-300 font-medium underline ml-2">
-                {t('printers.howToEnable', { defaultValue: 'How to enable' })}
-              </a>
             </div>
           </div>
         )}
