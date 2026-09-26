@@ -2235,6 +2235,15 @@ async def sync_weights_from_ams(
     synced = 0
     skipped = 0
 
+    # A single inventory record may intentionally back more than one AMS slot
+    # (the F-code workflow uses this as a shared stock pool). A tray's remain%
+    # describes one physical slot, so it cannot safely overwrite the aggregate
+    # remaining weight of a spool record shared by several slots. Those records
+    # are tracked additively by usage_tracker instead.
+    assignment_counts: dict[int, int] = {}
+    for item in assignments:
+        assignment_counts[item.spool_id] = assignment_counts.get(item.spool_id, 0) + 1
+
     for assignment in assignments:
         spool = assignment.spool
         if not spool:
@@ -2244,6 +2253,15 @@ async def sync_weights_from_ams(
 
         if spool.weight_locked:
             logger.debug("AMS weight sync: spool %d is weight-locked, skipping", spool.id)
+            skipped += 1
+            continue
+
+        if assignment_counts.get(spool.id, 0) > 1:
+            logger.debug(
+                "AMS weight sync: spool %d is shared across %d slots; usage tracking is authoritative",
+                spool.id,
+                assignment_counts[spool.id],
+            )
             skipped += 1
             continue
 
@@ -2311,6 +2329,21 @@ async def sync_weights_from_ams(
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+
+async def _spool_is_shared_across_slots(db: AsyncSession, spool_id: int) -> bool:
+    """Return True when one inventory spool record backs more than one slot.
+
+    Shared F-code stock must be consumption-tracked additively. Per-slot AMS
+    remain percentages describe individual physical rolls and cannot be used as
+    an absolute weight for an aggregate inventory record.
+    """
+    result = await db.execute(
+        select(SpoolAssignment.id)
+        .where(SpoolAssignment.spool_id == spool_id)
+        .limit(2)
+    )
+    return len(result.scalars().all()) > 1
 
 
 def _find_tray_in_ams_data(ams_data: list, ams_id: int, tray_id: int) -> dict | None:
