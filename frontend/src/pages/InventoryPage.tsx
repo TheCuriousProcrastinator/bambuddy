@@ -219,6 +219,105 @@ function formatInventoryDate(dateStr: string | null, dateFormat: DateFormat = 's
   return formatDateInput(date, dateFormat);
 }
 
+function InlineEditableCell({
+  value,
+  displayValue,
+  ariaLabel,
+  onSave,
+  inputType = 'text',
+  suffix,
+}: {
+  value: string;
+  displayValue: string;
+  ariaLabel: string;
+  onSave?: (value: string) => Promise<void>;
+  inputType?: 'text' | 'number';
+  suffix?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  if (!onSave) {
+    return <span className="text-sm text-bambu-gray">{displayValue}</span>;
+  }
+
+  const commit = async () => {
+    if (saving) return;
+    const next = draft.trim();
+    if (next === value.trim()) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(next);
+      setEditing(false);
+    } catch {
+      setDraft(value);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        aria-label={`Edit ${ariaLabel}`}
+        title={`Edit ${ariaLabel}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setDraft(value);
+          setEditing(true);
+        }}
+        className="min-w-[3rem] -mx-1 px-1 py-0.5 rounded text-left text-sm text-white hover:bg-bambu-dark-tertiary/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-bambu-green/60"
+      >
+        {displayValue}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="inline-flex items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <input
+        autoFocus
+        type={inputType}
+        min={inputType === 'number' ? 0 : undefined}
+        step={inputType === 'number' ? 1 : undefined}
+        value={draft}
+        aria-label={ariaLabel}
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { void commit(); }}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setDraft(value);
+            setEditing(false);
+          }
+        }}
+        className={`${inputType === 'number' ? 'w-20' : 'w-24'} rounded border border-bambu-green/60 bg-bambu-dark px-2 py-1 text-sm text-white outline-none focus:border-bambu-green disabled:opacity-60`}
+      />
+      {suffix && <span className="text-xs text-bambu-gray">{suffix}</span>}
+      {saving && <Loader2 className="w-3.5 h-3.5 text-bambu-green animate-spin" />}
+    </div>
+  );
+}
+
 // Slim shape for the LOCATION column — only the fields actually rendered.
 // Sourced from either local SpoolAssignment (lokal) or SpoolmanSlotAssignment
 // (Spoolman mode), so we can't reuse SpoolAssignment without dummy values.
@@ -243,6 +342,8 @@ type CellCtx = {
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  onUpdateNote?: (spool: InventorySpool, value: string) => Promise<void>;
+  onUpdateNet?: (spool: InventorySpool, grams: number) => Promise<void>;
   colorizeLocationSensors: boolean;
   locationSensorAboveColor: LocationSensorAlertColor;
   locationSensorBelowColor: LocationSensorAlertColor;
@@ -403,8 +504,19 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   label_weight: ({ spool }) => (
     <span className="text-sm text-white">{formatWeight(spool.label_weight)}</span>
   ),
-  net: ({ remaining }) => (
-    <span className="text-sm text-white">{formatWeight(remaining)}</span>
+  net: ({ spool, remaining, onUpdateNet }) => (
+    <InlineEditableCell
+      value={String(Math.round(remaining))}
+      displayValue={formatWeight(remaining)}
+      ariaLabel="Net weight"
+      inputType="number"
+      suffix="g"
+      onSave={onUpdateNet ? async (value) => {
+        const grams = Number(value);
+        if (!Number.isFinite(grams) || grams < 0) throw new Error('Net weight must be 0 or greater');
+        await onUpdateNet(spool, Math.round(grams));
+      } : undefined}
+    />
   ),
   gross: ({ spool, remaining }) => (
     <span className="text-sm text-bambu-gray">{formatWeight(remaining + spool.core_weight)}</span>
@@ -421,8 +533,13 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   printed_since_weight: () => (
     <span className="text-sm text-bambu-gray/50">-</span>
   ),
-  note: ({ spool }) => (
-    <span className="text-sm text-bambu-gray max-w-[150px] truncate block" title={spool.note || undefined}>{spool.note || '-'}</span>
+  note: ({ spool, onUpdateNote }) => (
+    <InlineEditableCell
+      value={spool.note || ''}
+      displayValue={spool.note || '-'}
+      ariaLabel="Filament code or note"
+      onSave={onUpdateNote ? (value) => onUpdateNote(spool, value) : undefined}
+    />
   ),
   pa_k: ({ spool }) => {
     const count = spool.k_profiles?.length ?? 0;
