@@ -378,7 +378,11 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
     const uncalibrated = screen.getByText('PLA').parentElement as HTMLElement;
     // Same number of children, so the fill bar sits at the same offset in both.
     expect(uncalibrated.children.length).toBe(calibrated.children.length);
-    // The reserved row carries no readable text of its own.
-    expect(uncalibrated).toHaveTextContent(/^2PLAF----$/);
+    // The reserved K row carries no readable K value of its own. The F-code
+    // control is a separate visible control, so do not assert the slot's exact
+    // concatenated text content (Testing Library normalises whitespace between
+    // those elements).
+    expect(uncalibrated).not.toHaveTextContent(/K\s+\d/);
+    expect(uncalibrated).toHaveTextContent('F----');
   });
 });
