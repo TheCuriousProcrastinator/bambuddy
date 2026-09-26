@@ -27,9 +27,11 @@ vi.mock('../../api/client', () => ({
     getBuiltinFilaments: vi.fn().mockResolvedValue([]),
     getPrinters: vi.fn().mockResolvedValue([]),
     getSpoolUsageHistory: vi.fn().mockResolvedValue([]),
+    getSpools: vi.fn().mockResolvedValue([]),
     createSpool: vi.fn().mockResolvedValue({ id: 99 }),
     createSpoolmanInventorySpool: vi.fn().mockResolvedValue({ id: 88 }),
     updateSpool: vi.fn().mockResolvedValue({ id: 1 }),
+    mergeSpoolIntoFCode: vi.fn().mockResolvedValue({ id: 2, stock_code: 'F0001' }),
     saveSpoolKProfiles: vi.fn().mockResolvedValue([]),
     getSpoolFilamentPresets: vi.fn().mockResolvedValue([]),
     saveSpoolFilamentPresets: vi.fn().mockResolvedValue([]),
@@ -108,6 +110,7 @@ const existingSpool: InventorySpool = {
   slicer_filament_name: 'Generic PLA',
   nozzle_temp_min: null,
   nozzle_temp_max: null,
+  stock_code: null,
   note: null,
   added_full: null,
   last_used: null,
@@ -232,6 +235,67 @@ describe('SpoolFormModal weightTouched', () => {
     const [payload] = vi.mocked(api.createSpool).mock.calls[0];
     // weight_used MUST be included for new spools (default value 0)
     expect(payload).toHaveProperty('weight_used', 0);
+  });
+
+  it('saves a new Inventory ID from the Filament tab without changing weight', async () => {
+    render(
+      <SpoolFormModal
+        isOpen={true}
+        onClose={vi.fn()}
+        spool={existingSpool}
+        mode="edit"
+        currencySymbol="$"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Inventory ID')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Inventory ID'), { target: { value: 'f0099' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(api.updateSpool).toHaveBeenCalledTimes(1);
+    });
+
+    const [, payload] = vi.mocked(api.updateSpool).mock.calls[0];
+    expect(payload).toHaveProperty('stock_code', 'F0099');
+    expect(payload).not.toHaveProperty('weight_used');
+  });
+
+  it('merges into an existing Inventory ID from the popup without adding weight', async () => {
+    const target = {
+      ...existingSpool,
+      id: 2,
+      stock_code: 'F0001',
+      label_weight: 2000,
+      weight_used: 987,
+    };
+    vi.mocked(api.getSpools).mockResolvedValue([existingSpool, target]);
+
+    render(
+      <SpoolFormModal
+        isOpen={true}
+        onClose={vi.fn()}
+        spool={existingSpool}
+        mode="edit"
+        currencySymbol="$"
+      />
+    );
+
+    await waitFor(() => {
+      expect(api.getSpools).toHaveBeenCalled();
+      expect(screen.getByLabelText('Inventory ID')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Inventory ID'), { target: { value: 'F0001' } });
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(api.mergeSpoolIntoFCode).toHaveBeenCalledWith(1, 2, 'F0001');
+    });
+    expect(api.updateSpool).not.toHaveBeenCalled();
   });
 
   it('preserves core_weight_catalog_id when editing other fields', async () => {
