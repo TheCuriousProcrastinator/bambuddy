@@ -3543,6 +3543,8 @@ export interface InventorySpool {
   slicer_filament_name: string | null;
   nozzle_temp_min: number | null;
   nozzle_temp_max: number | null;
+  /** Aggregate inventory identifier used by the custom F-code workflow. */
+  stock_code?: string | null;
   note: string | null;
   added_full: boolean | null;
   last_used: string | null;
