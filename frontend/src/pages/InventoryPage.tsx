@@ -108,40 +108,86 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'weight_check', label: 'Weight Check', visible: false },
 ];
 
+function normalizeColumnConfig(raw: unknown): ColumnConfig[] | null {
+  if (!Array.isArray(raw)) return null;
+
+  const defaultsById = new Map(DEFAULT_COLUMNS.map((column) => [column.id, column]));
+  const seen = new Set<string>();
+  const validStored: ColumnConfig[] = [];
+
+  for (const candidate of raw) {
+    if (
+      !candidate ||
+      typeof candidate !== 'object' ||
+      typeof (candidate as { id?: unknown }).id !== 'string' ||
+      typeof (candidate as { visible?: unknown }).visible !== 'boolean'
+    ) {
+      continue;
+    }
+
+    const id = (candidate as { id: string }).id;
+    const defaultColumn = defaultsById.get(id);
+    if (!defaultColumn || seen.has(id)) continue;
+
+    validStored.push({
+      ...defaultColumn,
+      visible: (candidate as { visible: boolean }).visible,
+    });
+    seen.add(id);
+  }
+
+  if (validStored.length === 0) return null;
+
+  // Keep the saved order, then merge any columns added by a newer Bambuddy
+  // release beside their nearest predecessor from DEFAULT_COLUMNS.
+  const merged = [...validStored];
+  for (const column of DEFAULT_COLUMNS) {
+    if (seen.has(column.id)) continue;
+
+    const defaultIndex = DEFAULT_COLUMNS.indexOf(column);
+    let insertAt = merged.length;
+    for (let i = defaultIndex - 1; i >= 0; i--) {
+      const idx = merged.findIndex((item) => item.id === DEFAULT_COLUMNS[i].id);
+      if (idx !== -1) {
+        insertAt = idx + 1;
+        break;
+      }
+    }
+    merged.splice(insertAt, 0, { ...column });
+  }
+
+  return merged;
+}
+
+function parseColumnConfig(raw: string | null | undefined): ColumnConfig[] | null {
+  if (!raw) return null;
+  try {
+    return normalizeColumnConfig(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
 function loadColumnConfig(): ColumnConfig[] {
   try {
-    const stored = localStorage.getItem(COLUMN_CONFIG_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as ColumnConfig[];
-      const defaultIds = new Set(DEFAULT_COLUMNS.map((c) => c.id));
-      const storedIds = new Set(parsed.map((c) => c.id));
-      // Keep stored columns that still exist in defaults
-      const validStored = parsed.filter((c) => defaultIds.has(c.id));
-      const merged = [...validStored];
-      for (const col of DEFAULT_COLUMNS) {
-        if (storedIds.has(col.id)) continue;
-        const defaultIndex = DEFAULT_COLUMNS.indexOf(col);
-        let insertAt = merged.length;
-        for (let i = defaultIndex - 1; i >= 0; i--) {
-          const idx = merged.findIndex((c) => c.id === DEFAULT_COLUMNS[i].id);
-          if (idx !== -1) {
-            insertAt = idx + 1;
-            break;
-          }
-        }
-        merged.splice(insertAt, 0, col);
-      }
-      return merged;
-    }
+    const local = parseColumnConfig(localStorage.getItem(COLUMN_CONFIG_KEY));
+    if (local) return local;
   } catch {
-    // Ignore errors
+    // Ignore browser-storage errors and use defaults.
   }
-  return DEFAULT_COLUMNS.map((c) => ({ ...c }));
+  return DEFAULT_COLUMNS.map((column) => ({ ...column }));
+}
+
+function serializeColumnConfig(config: ColumnConfig[]): string {
+  return JSON.stringify(config.map(({ id, visible }) => ({ id, visible })));
 }
 
 function saveColumnConfig(config: ColumnConfig[]) {
   try {
-    localStorage.setItem(COLUMN_CONFIG_KEY, JSON.stringify(config));
+    // Keep a browser-local cache for offline/startup rendering and one-time
+    // migration from older Bambuddy builds. The backend is authoritative once
+    // inventory_column_config exists there.
+    localStorage.setItem(COLUMN_CONFIG_KEY, serializeColumnConfig(config));
   } catch {
     // Ignore errors
   }
@@ -580,6 +626,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const [searchParams, setSearchParams] = useSearchParams();
   const [formModal, setFormModal] = useState<{ spool?: InventorySpool | null; mode: SpoolFormMode } | null>(null);
   const deepLinkHandled = useRef(false);
+  const columnConfigSyncStarted = useRef(false);
   const [confirmAction, setConfirmAction] = useState<
     | { type: 'delete' | 'archive' | 'reset-consumed-counter'; spoolId: number }
     | { type: 'reset-all-consumed-counters' }
@@ -651,6 +698,37 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     queryKey: ['settings'],
     queryFn: api.getSettings,
   });
+
+  useEffect(() => {
+    if (settings === undefined || columnConfigSyncStarted.current) return;
+    columnConfigSyncStarted.current = true;
+
+    const serverConfig = parseColumnConfig(settings.inventory_column_config);
+    if (serverConfig) {
+      setColumnConfig(serverConfig);
+      saveColumnConfig(serverConfig);
+      return;
+    }
+
+    // One-time migration for existing installs: if this browser already has a
+    // custom layout from the old localStorage-only implementation, seed the
+    // backend with it so other browsers inherit the same arrangement.
+    let localConfig: ColumnConfig[] | null = null;
+    try {
+      localConfig = parseColumnConfig(localStorage.getItem(COLUMN_CONFIG_KEY));
+    } catch {
+      // Ignore browser-storage errors; defaults remain in effect.
+    }
+    if (!localConfig) return;
+
+    void api.updateSettings({
+      inventory_column_config: serializeColumnConfig(localConfig),
+    }).then((updatedSettings) => {
+      queryClient.setQueryData(['settings'], updatedSettings);
+    }).catch((err) => {
+      console.warn('Failed to migrate inventory column layout to the backend', err);
+    });
+  }, [settings, queryClient]);
 
   const dateFormat: DateFormat = settings?.date_format || 'system';
   const locationSensorPollIntervalMs = (settings?.location_sensor_poll_interval || 120) * 1000;
@@ -1328,8 +1406,21 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const hasActiveFilters = archiveFilter !== 'active' || usageFilter !== 'all' || !!materialFilter || !!brandFilter || !!categoryFilter || !!spoolFilter || !!storageLocationFilter || stockFilter !== 'all' || !!search;
 
   const handleColumnConfigSave = (config: ColumnConfig[]) => {
-    setColumnConfig(config);
-    saveColumnConfig(config);
+    const normalized = normalizeColumnConfig(config) ?? DEFAULT_COLUMNS.map((column) => ({ ...column }));
+    setColumnConfig(normalized);
+    saveColumnConfig(normalized);
+
+    void api.updateSettings({
+      inventory_column_config: serializeColumnConfig(normalized),
+    }).then((updatedSettings) => {
+      queryClient.setQueryData(['settings'], updatedSettings);
+    }).catch((err) => {
+      console.warn('Failed to save inventory column layout to the backend', err);
+      showToast(
+        t('inventory.columnConfigSaveError', 'Column layout was saved only in this browser because the server save failed.'),
+        'error',
+      );
+    });
   };
 
   // Visible column IDs in order
