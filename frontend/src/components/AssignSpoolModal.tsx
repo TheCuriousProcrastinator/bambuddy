@@ -492,7 +492,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                     backend / cache returned nothing; if it's > 0 then
                     the archived / assigned-elsewhere filter ate the
                     spool and the toggle is the right escape hatch. */}
-                {spools && (
+                {spools && !filamentCodeMode && (
                   <p className="text-[10px] mt-2 opacity-60">
                     {spools.length} fetched · {spools.filter(s => s.archived_at).length} archived ·{' '}
                     {spools.filter(s => assignedSpoolIds.has(s.id)).length} assigned to other slots
@@ -502,7 +502,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
             ) : (
               <div className="text-center py-8 text-bambu-gray">
                 <p>{t('inventory.noSpoolsMatch')}</p>
-                {availableSpools && (
+                {availableSpools && !filamentCodeMode && (
                   <p className="text-[10px] mt-2 opacity-60">
                     {availableSpools.length} unassigned spools — {(availableSpools.length) - (filteredSpools?.length ?? 0)} filtered by tray match. Try "Show all spools".
                   </p>
