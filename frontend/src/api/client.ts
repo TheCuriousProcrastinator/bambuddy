@@ -6465,6 +6465,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  mergeSpoolIntoFCode: (sourceId: number, targetId: number, code: string) =>
+    request<InventorySpool>(`/inventory/spools/${sourceId}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ target_spool_id: targetId, code }),
+    }),
   deleteSpool: (id: number) =>
     request<{ status: string }>(`/inventory/spools/${id}`, { method: 'DELETE' }),
   archiveSpool: (id: number) =>
