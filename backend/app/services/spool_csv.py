@@ -352,7 +352,7 @@ async def parse_and_validate(raw_bytes: bytes, db: AsyncSession) -> ImportPrevie
         row_error: str | None = None
 
         # Plain text passthrough columns.
-        for field in ("subtype", "effect_type", "extra_colors", "note", "storage_location", "category"):
+        for field in ("subtype", "effect_type", "extra_colors", "stock_code", "note", "storage_location", "category"):
             value = cell(raw_row, field)
             if value:
                 data[field] = value
