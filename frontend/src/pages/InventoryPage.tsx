@@ -230,11 +230,13 @@ type LocationDisplay = {
   ams_label: string | null;
 };
 
+type AssignmentMap = Record<number, LocationDisplay[]>;
+
 type CellCtx = {
   spool: InventorySpool;
   remaining: number;
   pct: number;
-  assignmentMap: Record<number, LocationDisplay>;
+  assignmentMap: AssignmentMap;
   catalogMap: Record<number, SpoolCatalogEntry>;
   locationReadingsMap: Record<number, LocationHASensorReading[]>;
   currencySymbol: string;
@@ -326,16 +328,26 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     </span>
   ),
   location: ({ spool, assignmentMap }) => {
-    const assignment = assignmentMap[spool.id];
-    if (!assignment) return <span className="text-sm text-bambu-gray">-</span>;
-    const printerLabel = assignment.printer_name || `Printer ${assignment.printer_id}`;
-    const isExternal = assignment.ams_id === 254 || assignment.ams_id === 255;
-    const isHt = !isExternal && assignment.ams_id >= 128;
-    const slotLabel = formatSlotLabel(assignment.ams_id, assignment.tray_id, isHt, isExternal);
+    const spoolAssignments = assignmentMap[spool.id];
+    if (!spoolAssignments?.length) return <span className="text-sm text-bambu-gray">-</span>;
+
     return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400">
-        {printerLabel} {slotLabel}{assignment.ams_label ? ` (${assignment.ams_label})` : ''}
-      </span>
+      <div className="flex flex-wrap gap-1">
+        {spoolAssignments.map((assignment) => {
+          const printerLabel = assignment.printer_name || `Printer ${assignment.printer_id}`;
+          const isExternal = assignment.ams_id === 254 || assignment.ams_id === 255;
+          const isHt = !isExternal && assignment.ams_id >= 128;
+          const slotLabel = formatSlotLabel(assignment.ams_id, assignment.tray_id, isHt, isExternal);
+          return (
+            <span
+              key={`${assignment.printer_id}:${assignment.ams_id}:${assignment.tray_id}`}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400"
+            >
+              {printerLabel} {slotLabel}{assignment.ams_label ? ` (${assignment.ams_label})` : ''}
+            </span>
+          );
+        })}
+      </div>
     );
   },
   storage_location: ({ spool }) => {
@@ -526,7 +538,7 @@ const columnSortValues: Record<
   string,
   (
     spool: InventorySpool,
-    assignmentMap: Record<number, LocationDisplay>,
+    assignmentMap: AssignmentMap,
     locationReadingsMap: Record<number, LocationHASensorReading[]>
   ) => string | number
 > = {
@@ -544,12 +556,17 @@ const columnSortValues: Record<
   brand: (s) => (s.brand || '').toLowerCase(),
   slicer_filament: (s) => (s.slicer_filament_name || s.slicer_filament || '').toLowerCase(),
   location: (s, am) => {
-    const a = am[s.id];
-    if (!a) return '';
-    const isExt = a.ams_id === 254 || a.ams_id === 255;
-    const isHt = !isExt && a.ams_id >= 128;
-    const label = a.ams_label ? ` (${a.ams_label})` : '';
-    return `${a.printer_name || ''} ${formatSlotLabel(a.ams_id, a.tray_id, isHt, isExt)}${label}`;
+    const locations = am[s.id];
+    if (!locations?.length) return '';
+    return locations
+      .map((a) => {
+        const isExt = a.ams_id === 254 || a.ams_id === 255;
+        const isHt = !isExt && a.ams_id >= 128;
+        const label = a.ams_label ? ` (${a.ams_label})` : '';
+        return `${a.printer_name || ''} ${formatSlotLabel(a.ams_id, a.tray_id, isHt, isExt)}${label}`;
+      })
+      .sort((a, b) => a.localeCompare(b))
+      .join(' ');
   },
   storage_location: (s) => (s.storage_location || '').toLowerCase(),
   label_weight: (s) => s.label_weight,
@@ -1184,22 +1201,36 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
 
   const currencySymbol = getCurrencySymbol(settings?.currency || 'USD');
 
-  // Map spool_id -> location display data for the LOCATION column.
-  // Local SpoolAssignment entries first, then Spoolman SlotAssignment fills in
-  // remaining IDs. Local wins on collision (defensive — modes are exclusive in
-  // practice, but a stray pair with the same numeric id would otherwise be
-  // unpredictable). spool.id IS the spoolman_spool_id in Spoolman mode.
-  const assignmentMap = useMemo<Record<number, LocationDisplay>>(() => {
-    const map: Record<number, LocationDisplay> = {};
+  // Map spool_id -> every slot carrying that inventory spool. One F-code can
+  // intentionally back several AMS slots, so the LOCATION column must preserve
+  // all assignments instead of letting the last slot overwrite the first.
+  // Local assignment data wins over Spoolman on a numeric-id collision
+  // (defensive only; the modes are mutually exclusive in normal use).
+  const assignmentMap = useMemo<AssignmentMap>(() => {
+    const map: AssignmentMap = {};
+    const localSpoolIds = new Set<number>();
+
+    const addLocation = (spoolId: number, location: LocationDisplay) => {
+      const locations = map[spoolId] ?? (map[spoolId] = []);
+      const duplicate = locations.some((existing) =>
+        existing.printer_id === location.printer_id &&
+        existing.ams_id === location.ams_id &&
+        existing.tray_id === location.tray_id
+      );
+      if (!duplicate) locations.push(location);
+    };
+
     for (const a of assignments || []) {
-      map[a.spool_id] = {
+      localSpoolIds.add(a.spool_id);
+      addLocation(a.spool_id, {
         printer_id: a.printer_id,
         printer_name: a.printer_name,
         ams_id: a.ams_id,
         tray_id: a.tray_id,
         ams_label: a.ams_label ?? null,
-      };
+      });
     }
+
     for (const a of spoolmanSlotAssignments) {
       // Defensive: skip malformed entries (missing or invalid spool id, ams id,
       // tray id). The Pydantic response model on the backend should already
@@ -1209,18 +1240,28 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
         a.spoolman_spool_id <= 0 ||
         typeof a.printer_id !== 'number' ||
         typeof a.ams_id !== 'number' ||
-        typeof a.tray_id !== 'number'
+        typeof a.tray_id !== 'number' ||
+        localSpoolIds.has(a.spoolman_spool_id)
       ) continue;
-      if (!map[a.spoolman_spool_id]) {
-        map[a.spoolman_spool_id] = {
-          printer_id: a.printer_id,
-          printer_name: a.printer_name ?? null,
-          ams_id: a.ams_id,
-          tray_id: a.tray_id,
-          ams_label: a.ams_label ?? null,
-        };
-      }
+
+      addLocation(a.spoolman_spool_id, {
+        printer_id: a.printer_id,
+        printer_name: a.printer_name ?? null,
+        ams_id: a.ams_id,
+        tray_id: a.tray_id,
+        ams_label: a.ams_label ?? null,
+      });
     }
+
+    for (const locations of Object.values(map)) {
+      locations.sort((a, b) =>
+        (a.printer_name || '').localeCompare(b.printer_name || '') ||
+        a.printer_id - b.printer_id ||
+        a.ams_id - b.ams_id ||
+        a.tray_id - b.tray_id
+      );
+    }
+
     return map;
   }, [assignments, spoolmanSlotAssignments]);
 
@@ -2938,7 +2979,7 @@ function SpoolTableRow({
   onPrintLabel?: () => void;
   onResetConsumedCounter?: () => void;
   visibleColumns: string[];
-  assignmentMap: Record<number, LocationDisplay>;
+  assignmentMap: AssignmentMap;
   catalogMap: Record<number, SpoolCatalogEntry>;
   locationReadingsMap: Record<number, LocationHASensorReading[]>;
   currencySymbol: string;
@@ -3038,7 +3079,7 @@ function SpoolTableGroup({
   onPrintLabel?: (spoolId: number) => void;
   onResetConsumedCounter?: (id: number) => void;
   visibleColumns: string[];
-  assignmentMap: Record<number, LocationDisplay>;
+  assignmentMap: AssignmentMap;
   catalogMap: Record<number, SpoolCatalogEntry>;
   locationReadingsMap: Record<number, LocationHASensorReading[]>;
   currencySymbol: string;
