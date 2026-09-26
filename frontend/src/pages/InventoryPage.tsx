@@ -3126,7 +3126,6 @@ function SpoolTableRow({
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
-  onUpdateNote?: (spool: InventorySpool, value: string) => Promise<void>;
   onUpdateNet?: (spool: InventorySpool, grams: number) => Promise<void>;
   colorizeLocationSensors: boolean;
   locationSensorAboveColor: LocationSensorAlertColor;
@@ -3229,7 +3228,6 @@ function SpoolTableGroup({
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
-  onUpdateNote?: (spool: InventorySpool, value: string) => Promise<void>;
   onUpdateNet?: (spool: InventorySpool, grams: number) => Promise<void>;
   colorizeLocationSensors: boolean;
   locationSensorAboveColor: LocationSensorAlertColor;
