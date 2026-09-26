@@ -67,7 +67,7 @@ class TestSharedFCodeStock:
         spool = await spool_factory(
             slicer_filament="GFL99",
             material="PLA",
-            note="F0012",
+            stock_code="F0012",
             label_weight=2000,
             weight_used=0,
         )
@@ -129,7 +129,7 @@ class TestSharedFCodeStock:
         spool = await spool_factory(
             slicer_filament="GFL99",
             material="PLA",
-            note="F0012",
+            stock_code="F0012",
             label_weight=1000,
             weight_used=100,
         )
