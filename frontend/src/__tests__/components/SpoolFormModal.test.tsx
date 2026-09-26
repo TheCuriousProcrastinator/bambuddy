@@ -128,6 +128,8 @@ const existingSpool: InventorySpool = {
 describe('SpoolFormModal weightTouched', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.getSpools).mockResolvedValue([]);
+    vi.mocked(api.mergeSpoolIntoFCode).mockResolvedValue({ id: 2, stock_code: 'F0001' } as InventorySpool);
   });
 
   it('excludes weight_used from PATCH when editing without changing weight', async () => {
