@@ -128,6 +128,7 @@ class SpoolBase(BaseModel):
     @classmethod
     def _validate_stock_code(cls, v: str | None) -> str | None:
         return normalize_stock_code(v)
+
     tag_uid: str | None = None
     tray_uuid: str | None = None
     data_origin: str | None = None
