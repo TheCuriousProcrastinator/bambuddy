@@ -58,7 +58,14 @@ const COLUMN_CONFIG = JSON.stringify([
   { id: 'remaining', visible: true },
 ]);
 
-type TestSpool = typeof BASE_SPOOL & Record<string, unknown>;
+type TestSpool = Record<string, unknown> & {
+  id: number;
+  note: string | null;
+  archived_at: string | null;
+  brand: string | null;
+  label_weight: number;
+  weight_used: number;
+};
 
 describe('InventoryPage inline aggregate stock editing', () => {
   let spools: TestSpool[];
