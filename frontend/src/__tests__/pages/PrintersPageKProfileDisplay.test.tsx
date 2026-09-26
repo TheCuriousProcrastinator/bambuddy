@@ -115,6 +115,61 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
     expect(screen.getByText('K 0.024')).toHaveAttribute('title', 'K Factor');
   });
 
+  it('shows a clickable F-code control and opens the dedicated inventory picker', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+
+    server.use(
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+        ...mockPrinterStatus,
+        ams: [{
+          id: 0,
+          tray: [
+            {
+              id: 0,
+              tray_type: 'PETG',
+              tray_color: 'FF0000FF',
+              tray_sub_brands: 'Bambu PETG HF',
+              k: 0.024,
+            },
+            { id: 1, tray_type: null, state: 9 },
+            { id: 2, tray_type: null, state: 9 },
+            { id: 3, tray_type: null, state: 9 },
+          ],
+        }],
+      })),
+      http.get('/api/v1/inventory/assignments', () => HttpResponse.json([
+        {
+          id: 90,
+          spool_id: 8,
+          printer_id: 1,
+          ams_id: 0,
+          tray_id: 0,
+          spool: {
+            id: 8,
+            material: 'PETG',
+            subtype: 'HF',
+            brand: 'Bambu Lab',
+            color_name: 'Black',
+            rgba: '000000FF',
+            label_weight: 1000,
+            weight_used: 120,
+            note: 'F0008',
+          },
+        },
+      ])),
+      http.get('/api/v1/inventory/spools', () => HttpResponse.json([])),
+    );
+
+    render(<PrintersPage />);
+
+    const codeButton = await screen.findByRole('button', { name: 'F0008' });
+    expect(codeButton).toHaveAttribute('title', 'Change filament code F0008');
+
+    await user.click(codeButton);
+    expect(await screen.findByText('F-code')).toBeInTheDocument();
+  });
+
   it('does not show a K-value on an empty slot', async () => {
     server.use(
       http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
@@ -182,7 +237,7 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
     // ... but no K-value line, fabricated or otherwise, should appear. Read the
     // slot's own text rather than only querying for a "K " label: a guard that
     // leaks a value without the label would pass the label query.
-    expect(screen.getByText('PETG').parentElement).toHaveTextContent(/^1PETG$/);
+    expect(screen.getByText('PETG').parentElement).toHaveTextContent(/^1PETGF----$/);
   });
 
   it('does not show a K-value when the printer reports exactly 0 (review #2854, round 2)', async () => {
@@ -221,7 +276,7 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
     });
     // The slot number and the material, and nothing else -- no "K 0.000", and
     // no stray "0" leaked by the guard.
-    expect(screen.getByText('PETG').parentElement).toHaveTextContent(/^1PETG$/);
+    expect(screen.getByText('PETG').parentElement).toHaveTextContent(/^1PETGF----$/);
   });
 
   it('does not leak a stray 0 on an external or AMS-HT slot reporting exactly 0', async () => {
@@ -323,6 +378,6 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
     // Same number of children, so the fill bar sits at the same offset in both.
     expect(uncalibrated.children.length).toBe(calibrated.children.length);
     // The reserved row carries no readable text of its own.
-    expect(uncalibrated).toHaveTextContent(/^2PLA$/);
+    expect(uncalibrated).toHaveTextContent(/^2PLAF----$/);
   });
 });
