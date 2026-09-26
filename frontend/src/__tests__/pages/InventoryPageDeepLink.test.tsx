@@ -252,6 +252,42 @@ describe('InventoryPage - deep-link ?spool= flow', () => {
     });
   });
 
+  describe('shared inventory locations', () => {
+    beforeEach(() => {
+      window.history.replaceState({}, '', '/');
+      setupCommonHandlers([{ ...BASE_SPOOL, note: 'F0001' }]);
+      server.use(
+        http.get('/api/v1/inventory/assignments', () => HttpResponse.json([
+          {
+            id: 90,
+            spool_id: 42,
+            printer_id: 1,
+            printer_name: 'P1S',
+            ams_id: 0,
+            tray_id: 2,
+            ams_label: null,
+          },
+          {
+            id: 91,
+            spool_id: 42,
+            printer_id: 1,
+            printer_name: 'P1S',
+            ams_id: 0,
+            tray_id: 3,
+            ams_label: null,
+          },
+        ])),
+      );
+    });
+
+    it('shows every AMS slot assigned to the same spool', async () => {
+      render(<InventoryPageRouter />);
+
+      expect(await screen.findByText('P1S A3')).toBeInTheDocument();
+      expect(screen.getByText('P1S A4')).toBeInTheDocument();
+    });
+  });
+
   describe('scenario 5 (T-Gap 8): deep-link works in Spoolman mode', () => {
     beforeEach(() => {
       window.history.pushState({}, '', '/?spool=42');
