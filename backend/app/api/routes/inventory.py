@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -29,6 +30,7 @@ from backend.app.models.spool_catalog import SpoolCatalogEntry
 from backend.app.models.spool_filament_preset import SpoolFilamentPreset
 from backend.app.models.spool_k_profile import SpoolKProfile
 from backend.app.models.spool_usage_history import SpoolUsageHistory
+from backend.app.models.undo_operation import UndoOperation
 from backend.app.models.user import User
 from backend.app.schemas.location import LocationCreate, LocationResponse, LocationUpdate
 from backend.app.schemas.spool import (
@@ -1528,25 +1530,58 @@ class MergeSpoolRequest(BaseModel):
     code: str = Field(..., min_length=5, max_length=5)
 
 
-@router.post("/spools/{source_spool_id}/merge", response_model=SpoolResponse)
-async def merge_spool_into_existing_fcode(
-    source_spool_id: int,
-    payload: MergeSpoolRequest,
-    db: AsyncSession = Depends(get_db),
-    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
-):
-    """Merge an unassigned duplicate row into an existing F-code stock bucket.
+class UndoRedoResponse(BaseModel):
+    changed: bool
+    action: str | None = None
+    message: str
 
-    The target's stock totals are deliberately authoritative: label_weight,
-    weight_used and therefore Net are NOT summed. This is for reconciling a
-    duplicate physical-spool row that is already represented by an aggregate
-    F-code bucket. Usage history and non-conflicting calibration metadata move
-    to the target before the duplicate row is removed.
-    """
-    if source_spool_id == payload.target_spool_id:
+
+_UNDO_DATETIME_KEY = "__bambuddy_datetime__"
+
+
+def _undo_encode_value(value):
+    if isinstance(value, datetime):
+        return {_UNDO_DATETIME_KEY: value.isoformat()}
+    return value
+
+
+def _undo_decode_value(value):
+    if isinstance(value, dict) and set(value) == {_UNDO_DATETIME_KEY} and isinstance(value[_UNDO_DATETIME_KEY], str):
+        return datetime.fromisoformat(value[_UNDO_DATETIME_KEY])
+    return value
+
+
+def _undo_snapshot_row(row) -> dict:
+    return {column.name: _undo_encode_value(getattr(row, column.name)) for column in row.__table__.columns}
+
+
+def _undo_restore_values(snapshot: dict) -> dict:
+    return {key: _undo_decode_value(value) for key, value in snapshot.items()}
+
+
+def _undo_actor_predicate(current_user: User | None):
+    if current_user is None:
+        return UndoOperation.actor_user_id.is_(None)
+    return UndoOperation.actor_user_id == current_user.id
+
+
+def _snapshot_reparented_to(snapshot: dict, spool_id: int) -> dict:
+    expected = dict(snapshot)
+    expected["spool_id"] = spool_id
+    return expected
+
+
+async def _perform_fcode_merge(
+    db: AsyncSession,
+    source_spool_id: int,
+    target_spool_id: int,
+    raw_code: str,
+) -> tuple[Spool, dict]:
+    """Perform one F-code merge and return its reversible pre-merge snapshot."""
+    if source_spool_id == target_spool_id:
         raise HTTPException(400, "Source and target spool must be different")
 
-    code = _inventory_fcode(payload.code)
+    code = _inventory_fcode(raw_code)
     if code is None:
         raise HTTPException(400, "Merge code must use the F0000 format")
 
@@ -1571,7 +1606,7 @@ async def merge_spool_into_existing_fcode(
                 selectinload(Spool.k_profiles),
                 selectinload(Spool.filament_presets),
             )
-            .where(Spool.id == payload.target_spool_id)
+            .where(Spool.id == target_spool_id)
         )
     ).scalar_one_or_none()
     if target is None:
@@ -1581,9 +1616,6 @@ async def merge_spool_into_existing_fcode(
     if _spool_fcode(target) != code:
         raise HTTPException(409, f"Target spool is no longer {code}")
 
-    # A typo must not silently delete a different filament row. Material is
-    # required on every spool; the other identity fields only block when both
-    # rows actually carry a value, so older/incomplete rows can still merge.
     if source.material.strip().casefold() != target.material.strip().casefold():
         raise HTTPException(409, f"{code} belongs to a different material")
 
@@ -1595,67 +1627,292 @@ async def merge_spool_into_existing_fcode(
         if source_value and target_value and source_value.strip().casefold() != target_value.strip().casefold():
             raise HTTPException(409, f"{code} belongs to a different {label}")
 
-    # Merging an assigned source during an active/possible print can invalidate
-    # the usage tracker's print-start spool snapshot. The printer-page F-code
-    # picker is the safe way to move a live slot to the aggregate bucket first.
     if source.assignments:
         raise HTTPException(
             409,
             "This spool is still assigned to a printer. Assign the F-code from the printer slot first, then merge it.",
         )
 
-    # Preserve historical usage instead of letting source deletion cascade it.
-    usage_rows = (
-        await db.execute(select(SpoolUsageHistory).where(SpoolUsageHistory.spool_id == source.id))
-    ).scalars().all()
+    usage_rows = list(
+        (await db.execute(select(SpoolUsageHistory).where(SpoolUsageHistory.spool_id == source.id))).scalars().all()
+    )
+
+    target_k_keys = {(row.printer_id, row.extruder, row.nozzle_diameter, row.nozzle_type) for row in target.k_profiles}
+    moved_k_ids: list[int] = []
+    deleted_k_snapshots: list[dict] = []
+
+    target_preset_keys = {(row.printer_model, row.nozzle_diameter) for row in target.filament_presets}
+    moved_preset_ids: list[int] = []
+    deleted_preset_snapshots: list[dict] = []
+
+    undo_payload = {
+        "source": _undo_snapshot_row(source),
+        "target_id": target.id,
+        "code": code,
+        "usage_row_ids": [row.id for row in usage_rows],
+        "source_k_profiles": [_undo_snapshot_row(row) for row in source.k_profiles],
+        "source_filament_presets": [_undo_snapshot_row(row) for row in source.filament_presets],
+        "target_last_used_before": _undo_encode_value(target.last_used),
+    }
+
     for row in usage_rows:
         row.spool_id = target.id
 
-    # Keep target calibration when an equivalent key already exists; otherwise
-    # carry the source calibration across.
-    target_k_keys = {
-        (row.printer_id, row.extruder, row.nozzle_diameter, row.nozzle_type)
-        for row in target.k_profiles
-    }
     for row in list(source.k_profiles):
         key = (row.printer_id, row.extruder, row.nozzle_diameter, row.nozzle_type)
         if key in target_k_keys:
+            deleted_k_snapshots.append(_undo_snapshot_row(row))
             await db.delete(row)
         else:
+            moved_k_ids.append(row.id)
             row.spool = target
             target_k_keys.add(key)
 
-    # This table has a UNIQUE constraint on (spool, model, nozzle), so target
-    # wins on collisions and non-overlapping source overrides move across.
-    target_preset_keys = {
-        (row.printer_model, row.nozzle_diameter)
-        for row in target.filament_presets
-    }
     for row in list(source.filament_presets):
         key = (row.printer_model, row.nozzle_diameter)
         if key in target_preset_keys:
+            deleted_preset_snapshots.append(_undo_snapshot_row(row))
             await db.delete(row)
         else:
+            moved_preset_ids.append(row.id)
             row.spool = target
             target_preset_keys.add(key)
 
     if source.last_used and (target.last_used is None or source.last_used > target.last_used):
         target.last_used = source.last_used
 
-    # Flush reparented history/metadata before deleting the source. Usage
-    # history has no ORM relationship on Spool, so relying on flush ordering
-    # here could let the FK cascade delete history before its UPDATE runs.
+    undo_payload.update(
+        {
+            "moved_k_profile_ids": moved_k_ids,
+            "deleted_k_profiles": deleted_k_snapshots,
+            "moved_filament_preset_ids": moved_preset_ids,
+            "deleted_filament_presets": deleted_preset_snapshots,
+            "target_last_used_after": _undo_encode_value(target.last_used),
+        }
+    )
+
+    await db.flush()
+    await db.delete(source)
+    return target, undo_payload
+
+
+async def _restore_fcode_merge(db: AsyncSession, operation: UndoOperation) -> tuple[int, str]:
+    payload = operation.payload or {}
+    source_snapshot = payload.get("source")
+    target_id = payload.get("target_id")
+    code = payload.get("code")
+
+    if not isinstance(source_snapshot, dict) or not isinstance(target_id, int) or not isinstance(code, str):
+        raise HTTPException(409, "Undo history is incomplete")
+
+    source_values = _undo_restore_values(source_snapshot)
+    source_id = source_values.get("id")
+    if not isinstance(source_id, int):
+        raise HTTPException(409, "Undo history has no source spool")
+    if await db.get(Spool, source_id) is not None:
+        raise HTTPException(409, f"Cannot undo merge because spool #{source_id} already exists.")
+
+    target = await db.get(Spool, target_id)
+    if target is None:
+        raise HTTPException(409, "Cannot undo merge because the target spool no longer exists.")
+
+    usage_ids = [int(row_id) for row_id in payload.get("usage_row_ids", [])]
+    usage_rows: list[SpoolUsageHistory] = []
+    if usage_ids:
+        usage_rows = list(
+            (await db.execute(select(SpoolUsageHistory).where(SpoolUsageHistory.id.in_(usage_ids)))).scalars().all()
+        )
+        if {row.id for row in usage_rows} != set(usage_ids):
+            raise HTTPException(409, "Cannot undo merge because usage history changed.")
+        if any(row.spool_id != target_id for row in usage_rows):
+            raise HTTPException(409, "Cannot undo merge because usage history moved elsewhere.")
+
+    source_k_snapshots = payload.get("source_k_profiles", [])
+    k_snapshot_by_id = {
+        int(snapshot["id"]): snapshot
+        for snapshot in source_k_snapshots
+        if isinstance(snapshot, dict) and "id" in snapshot
+    }
+    moved_k_ids = [int(row_id) for row_id in payload.get("moved_k_profile_ids", [])]
+    moved_k_rows: list[SpoolKProfile] = []
+    if moved_k_ids:
+        moved_k_rows = list(
+            (await db.execute(select(SpoolKProfile).where(SpoolKProfile.id.in_(moved_k_ids)))).scalars().all()
+        )
+        if {row.id for row in moved_k_rows} != set(moved_k_ids):
+            raise HTTPException(409, "Cannot undo merge because calibration metadata changed.")
+        for row in moved_k_rows:
+            snapshot = k_snapshot_by_id.get(row.id)
+            if snapshot is None or _undo_snapshot_row(row) != _snapshot_reparented_to(snapshot, target_id):
+                raise HTTPException(409, "Cannot undo merge because calibration metadata changed.")
+
+    source_preset_snapshots = payload.get("source_filament_presets", [])
+    preset_snapshot_by_id = {
+        int(snapshot["id"]): snapshot
+        for snapshot in source_preset_snapshots
+        if isinstance(snapshot, dict) and "id" in snapshot
+    }
+    moved_preset_ids = [int(row_id) for row_id in payload.get("moved_filament_preset_ids", [])]
+    moved_preset_rows: list[SpoolFilamentPreset] = []
+    if moved_preset_ids:
+        moved_preset_rows = list(
+            (await db.execute(select(SpoolFilamentPreset).where(SpoolFilamentPreset.id.in_(moved_preset_ids))))
+            .scalars()
+            .all()
+        )
+        if {row.id for row in moved_preset_rows} != set(moved_preset_ids):
+            raise HTTPException(409, "Cannot undo merge because preset metadata changed.")
+        for row in moved_preset_rows:
+            snapshot = preset_snapshot_by_id.get(row.id)
+            if snapshot is None or _undo_snapshot_row(row) != _snapshot_reparented_to(snapshot, target_id):
+                raise HTTPException(409, "Cannot undo merge because preset metadata changed.")
+
+    source = Spool(**source_values)
+    db.add(source)
     await db.flush()
 
-    # Deliberately do not touch target.label_weight or target.weight_used.
-    await db.delete(source)
+    for row in usage_rows:
+        row.spool_id = source_id
+    for row in moved_k_rows:
+        row.spool_id = source_id
+    for row in moved_preset_rows:
+        row.spool_id = source_id
+
+    for snapshot in payload.get("deleted_k_profiles", []):
+        db.add(SpoolKProfile(**_undo_restore_values(snapshot)))
+    for snapshot in payload.get("deleted_filament_presets", []):
+        db.add(SpoolFilamentPreset(**_undo_restore_values(snapshot)))
+
+    target_before = _undo_decode_value(payload.get("target_last_used_before"))
+    target_after = _undo_decode_value(payload.get("target_last_used_after"))
+    if target.last_used == target_after:
+        target.last_used = target_before
+
+    operation.state = "undone"
+    await db.flush()
+    return source_id, code
+
+
+@router.post("/spools/{source_spool_id}/merge", response_model=SpoolResponse)
+async def merge_spool_into_existing_fcode(
+    source_spool_id: int,
+    payload: MergeSpoolRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    """Merge a duplicate row into an existing F-code bucket and record undo state."""
+    target, undo_payload = await _perform_fcode_merge(
+        db,
+        source_spool_id,
+        payload.target_spool_id,
+        payload.code,
+    )
+
+    # A new reversible action after undo starts a new branch, so stale redo
+    # entries for this actor must be discarded.
+    await db.execute(
+        delete(UndoOperation).where(
+            _undo_actor_predicate(current_user),
+            UndoOperation.state == "undone",
+        )
+    )
+    db.add(
+        UndoOperation(
+            actor_user_id=current_user.id if current_user is not None else None,
+            kind="inventory.merge",
+            state="applied",
+            payload=undo_payload,
+        )
+    )
     await db.commit()
 
-    result = await db.execute(
-        select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == target.id)
-    )
+    result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == target.id))
     await ws_manager.broadcast({"type": "inventory_changed"})
     return result.scalar_one()
+
+
+@router.post("/undo", response_model=UndoRedoResponse)
+async def undo_last_inventory_action(
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    operation = (
+        await db.execute(
+            select(UndoOperation)
+            .where(
+                _undo_actor_predicate(current_user),
+                UndoOperation.state == "applied",
+            )
+            .order_by(UndoOperation.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if operation is None:
+        return UndoRedoResponse(changed=False, message="Nothing to undo.")
+    if operation.kind != "inventory.merge":
+        raise HTTPException(409, f"Undo is not implemented for {operation.kind}.")
+
+    source_id, code = await _restore_fcode_merge(db, operation)
+    await db.commit()
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return UndoRedoResponse(
+        changed=True,
+        action=operation.kind,
+        message=f"Undid merge into {code}. Restored spool #{source_id}.",
+    )
+
+
+@router.post("/redo", response_model=UndoRedoResponse)
+async def redo_last_inventory_action(
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    operation = (
+        await db.execute(
+            select(UndoOperation)
+            .where(
+                _undo_actor_predicate(current_user),
+                UndoOperation.state == "undone",
+            )
+            .order_by(UndoOperation.id.asc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if operation is None:
+        return UndoRedoResponse(changed=False, message="Nothing to redo.")
+    if operation.kind != "inventory.merge":
+        raise HTTPException(409, f"Redo is not implemented for {operation.kind}.")
+
+    payload = operation.payload or {}
+    source_snapshot = payload.get("source")
+    target_id = payload.get("target_id")
+    code = payload.get("code")
+    if not isinstance(source_snapshot, dict) or not isinstance(target_id, int) or not isinstance(code, str):
+        raise HTTPException(409, "Redo history is incomplete")
+
+    expected_source = _undo_restore_values(source_snapshot)
+    source_id = expected_source.get("id")
+    if not isinstance(source_id, int):
+        raise HTTPException(409, "Redo history has no source spool")
+
+    current_source = await db.get(Spool, source_id)
+    if current_source is None:
+        raise HTTPException(409, "Cannot redo merge because the restored spool no longer exists.")
+    if _undo_snapshot_row(current_source) != source_snapshot:
+        raise HTTPException(409, "Cannot redo merge because the restored spool changed.")
+
+    _target, new_payload = await _perform_fcode_merge(db, source_id, target_id, code)
+    operation.payload = new_payload
+    operation.state = "applied"
+    await db.commit()
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return UndoRedoResponse(
+        changed=True,
+        action=operation.kind,
+        message=f"Redid merge into {code}.",
+    )
 
 
 class BulkUpdateRequest(BaseModel):
@@ -2498,11 +2755,7 @@ async def _spool_is_shared_across_slots(db: AsyncSession, spool_id: int) -> bool
     remain percentages describe individual physical rolls and cannot be used as
     an absolute weight for an aggregate inventory record.
     """
-    result = await db.execute(
-        select(SpoolAssignment.id)
-        .where(SpoolAssignment.spool_id == spool_id)
-        .limit(2)
-    )
+    result = await db.execute(select(SpoolAssignment.id).where(SpoolAssignment.spool_id == spool_id).limit(2))
     return len(result.scalars().all()) > 1
 
 

@@ -31,6 +31,7 @@ import { usePrintProgressTitle } from './hooks/usePrintProgressTitle';
 import { useStreamTokenSync } from './hooks/useCameraStreamToken';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { GlobalUndoRedoShortcuts } from './components/GlobalUndoRedoShortcuts';
 import { SliceJobTrackerProvider } from './contexts/SliceJobTrackerContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ColorCatalogProvider } from './contexts/ColorCatalogContext';
@@ -172,6 +173,7 @@ function App() {
             <ColorCatalogProvider>
             <SliceJobTrackerProvider>
             <StreamTokenSync />
+            <GlobalUndoRedoShortcuts />
             <BrowserRouter>
               <Routes>
                 {/* Setup page - only accessible if auth not enabled */}

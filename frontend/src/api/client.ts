@@ -6472,6 +6472,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ target_spool_id: targetId, code }),
     }),
+  undoLastAction: () =>
+    request<{ changed: boolean; action: string | null; message: string }>('/inventory/undo', {
+      method: 'POST',
+    }),
+  redoLastAction: () =>
+    request<{ changed: boolean; action: string | null; message: string }>('/inventory/redo', {
+      method: 'POST',
+    }),
   deleteSpool: (id: number) =>
     request<{ status: string }>(`/inventory/spools/${id}`, { method: 'DELETE' }),
   archiveSpool: (id: number) =>

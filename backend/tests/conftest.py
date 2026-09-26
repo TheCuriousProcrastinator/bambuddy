@@ -250,6 +250,7 @@ async def test_engine():
         spoolbuddy_device,
         spoolman_k_profile,
         spoolman_slot_assignment,
+        undo_operation,
         user,
         user_email_pref,
         user_otp_code,

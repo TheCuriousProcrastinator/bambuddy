@@ -2018,7 +2018,7 @@ async def on_ams_change(printer_id: int, ams_data: list):
         async with async_session() as db:
             from sqlalchemy.orm import selectinload
 
-            from backend.app.api.routes.inventory import _find_tray_in_ams_data
+            from backend.app.api.routes.inventory import _find_tray_in_ams_data, _spool_fcode
             from backend.app.models.spool import Spool as _Spool
             from backend.app.models.spool_assignment import SpoolAssignment as SA
             from backend.app.services.inventory_mode import spoolman_owns_assignments
@@ -2105,6 +2105,32 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                 assignment.tray_id,
                             )
                         continue
+
+                    # An F-code is a logical aggregate stock bucket, not the
+                    # RFID identity of one physical roll. A Bambu tray UUID
+                    # therefore cannot match it. Preserve the user's F-code
+                    # mapping when the live roll still matches the bucket's
+                    # material and colour. A real filament change still falls
+                    # through to the normal auto-unlink path.
+                    if spool and _spool_fcode(spool) is not None:
+                        cur_color = current_tray.get("tray_color", "")
+                        cur_type = current_tray.get("tray_type", "")
+                        spool_color = (spool.rgba or "").strip()
+                        material_matches = (
+                            printer_filament_type(cur_type).upper() == printer_filament_type(spool.material).upper()
+                        )
+                        color_matches = not spool_color or not cur_color or _colors_similar(cur_color, spool_color)
+                        if material_matches and color_matches:
+                            assignment.fingerprint_color = cur_color
+                            assignment.fingerprint_type = cur_type
+                            logger.info(
+                                "Auto-unlink skipped: F-code spool %d AMS%d-T%d still matches live material/color",
+                                assignment.spool_id,
+                                assignment.ams_id,
+                                assignment.tray_id,
+                            )
+                            continue
+
                     # Different BL spool or unrecognized — unlink so auto-assign can match
                     logger.info(
                         "Auto-unlink: spool %d AMS%d-T%d — different Bambu Lab spool detected (uuid=%s)",

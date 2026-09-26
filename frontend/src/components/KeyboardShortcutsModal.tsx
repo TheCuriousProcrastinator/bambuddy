@@ -64,6 +64,8 @@ function getShortcuts(
       { keys: ['Esc'], description: 'Exit selection mode', isExternal: false },
     ]},
     { category: 'General', items: [
+      { keys: ['⌘/Ctrl', 'Z'], description: 'Undo last reversible action', isExternal: false },
+      { keys: ['⌘/Ctrl', '⇧', 'Z'], description: 'Redo last reversible action', isExternal: false },
       { keys: ['?'], description: 'Show this help', isExternal: false },
     ]},
   ];

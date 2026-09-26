@@ -118,7 +118,6 @@ class TestSharedFCodeStock:
             assert stored.status_code == 200
             assert stored.json()["weight_used"] == 0
 
-
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_single_slot_fcode_skips_absolute_ams_weight_sync(
@@ -1760,3 +1759,157 @@ class TestSpoolmanSlotAssignmentDuringRunout:
 
         db_session.expunge_all()
         assert await db_session.get(SpoolmanSlotAssignment, row_id) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_fcode_assignment_survives_bambu_rfid_reconnect(
+    async_client: AsyncClient,
+    printer_factory,
+    spool_factory,
+    db_session: AsyncSession,
+):
+    """A user-selected F-code is a sticky stock mapping, not an RFID identity."""
+    from unittest.mock import AsyncMock
+
+    from backend.app.main import on_ams_change
+    from backend.app.models.spool_assignment import SpoolAssignment
+
+    printer = await printer_factory(name="P1S")
+    spool = await spool_factory(
+        stock_code="F0001",
+        material="PLA",
+        rgba="FF0000FF",
+        slicer_filament="GFL99",
+    )
+
+    assignment = SpoolAssignment(
+        spool_id=spool.id,
+        printer_id=printer.id,
+        ams_id=0,
+        tray_id=2,
+        fingerprint_color="FF0000FF",
+        fingerprint_type="PLA",
+    )
+    db_session.add(assignment)
+    await db_session.commit()
+    assignment_id = assignment.id
+
+    # A real Bambu RFID roll is physically in the slot. Its UUID cannot match
+    # the aggregate F-code row, but reconnect reconciliation must not delete
+    # the user's explicit F0001 mapping.
+    ams_data = [
+        {
+            "id": 0,
+            "tray": [
+                {
+                    "id": 2,
+                    "tray_type": "PLA",
+                    "tray_color": "FF0000FF",
+                    "tray_info_idx": "GFL99",
+                    "tray_uuid": "1234567890ABCDEF1234567890ABCDEF",
+                    "tag_uid": "1234567890ABCDEF",
+                    "state": 11,
+                }
+            ],
+        }
+    ]
+
+    status = _make_mock_status(ams_data=ams_data)
+    status.state = "IDLE"
+
+    with (
+        patch("backend.app.main.printer_manager") as mock_pm,
+        patch("backend.app.main.mqtt_relay") as mock_relay,
+        patch("backend.app.main.ws_manager") as mock_ws,
+    ):
+        mock_pm.get_printer.return_value = MagicMock(
+            name="P1S",
+            serial_number="TEST123",
+        )
+        mock_pm.get_status.return_value = status
+        mock_pm.get_model.return_value = "P1S"
+        mock_relay.on_ams_change = AsyncMock()
+        mock_ws.send_printer_status = AsyncMock()
+        mock_ws.broadcast = AsyncMock()
+
+        await on_ams_change(printer.id, ams_data)
+
+    db_session.expunge_all()
+    assert await db_session.get(SpoolAssignment, assignment_id) is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_fcode_assignment_unlinks_for_different_bambu_material(
+    async_client: AsyncClient,
+    printer_factory,
+    spool_factory,
+    db_session: AsyncSession,
+):
+    """F-code persistence must not hide a genuine physical filament change."""
+    from unittest.mock import AsyncMock
+
+    from backend.app.main import on_ams_change
+    from backend.app.models.spool_assignment import SpoolAssignment
+
+    printer = await printer_factory(name="P1S")
+    spool = await spool_factory(
+        stock_code="F0001",
+        material="PLA",
+        rgba="FF0000FF",
+        slicer_filament="GFL99",
+    )
+
+    assignment = SpoolAssignment(
+        spool_id=spool.id,
+        printer_id=printer.id,
+        ams_id=0,
+        tray_id=2,
+        fingerprint_color="FF0000FF",
+        fingerprint_type="PLA",
+    )
+    db_session.add(assignment)
+    await db_session.commit()
+    assignment_id = assignment.id
+
+    ams_data = [
+        {
+            "id": 0,
+            "tray": [
+                {
+                    "id": 2,
+                    "tray_type": "PETG",
+                    "tray_color": "00FF00FF",
+                    "tray_info_idx": "GFG99",
+                    "tray_uuid": "ABCDEF1234567890ABCDEF1234567890",
+                    "tag_uid": "ABCDEF1234567890",
+                    "state": 11,
+                }
+            ],
+        }
+    ]
+
+    status = _make_mock_status(ams_data=ams_data)
+    status.state = "IDLE"
+
+    with (
+        patch("backend.app.main.printer_manager") as mock_pm,
+        patch("backend.app.main.mqtt_relay") as mock_relay,
+        patch("backend.app.main.ws_manager") as mock_ws,
+    ):
+        mock_pm.get_printer.return_value = MagicMock(
+            name="P1S",
+            serial_number="TEST123",
+        )
+        mock_pm.get_status.return_value = status
+        mock_pm.get_model.return_value = "P1S"
+        mock_relay.on_ams_change = AsyncMock()
+        mock_ws.send_printer_status = AsyncMock()
+        mock_ws.broadcast = AsyncMock()
+
+        await on_ams_change(printer.id, ams_data)
+
+    db_session.expunge_all()
+    remaining = await db_session.get(SpoolAssignment, assignment_id)
+    assert remaining is None or remaining.spool_id != spool.id
