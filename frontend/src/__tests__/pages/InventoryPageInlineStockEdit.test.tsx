@@ -58,8 +58,10 @@ const COLUMN_CONFIG = JSON.stringify([
   { id: 'remaining', visible: true },
 ]);
 
+type TestSpool = typeof BASE_SPOOL & Record<string, unknown>;
+
 describe('InventoryPage inline aggregate stock editing', () => {
-  let spools: Array<Record<string, any>>;
+  let spools: TestSpool[];
   let lastPatch: Record<string, unknown> | null;
   let lastMerge: Record<string, unknown> | null;
 
@@ -96,7 +98,7 @@ describe('InventoryPage inline aggregate stock editing', () => {
         lastPatch = payload;
         const index = spools.findIndex((spool) => spool.id === id);
         if (index < 0) return HttpResponse.json({ detail: 'Not found' }, { status: 404 });
-        spools[index] = { ...spools[index], ...payload };
+        spools[index] = { ...spools[index], ...payload } as TestSpool;
         return HttpResponse.json(spools[index]);
       }),
       http.post('/api/v1/inventory/spools/:id/merge', async ({ params, request }) => {
