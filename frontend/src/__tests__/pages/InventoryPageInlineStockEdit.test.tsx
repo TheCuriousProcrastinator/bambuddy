@@ -108,7 +108,6 @@ describe('InventoryPage inline aggregate stock editing', () => {
         spools[index] = { ...spools[index], ...payload } as TestSpool;
         return HttpResponse.json(spools[index]);
       }),
-,
     );
   });
 
