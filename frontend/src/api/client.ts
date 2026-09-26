@@ -1474,7 +1474,7 @@ export interface AppSettings {
   // brings them back; see utils/locationSensorDefaults.ts.
   location_sensor_alert_defaults: string;
   // Server-backed Inventory table column order/visibility.
-  inventory_column_config: string;
+  inventory_column_config?: string;
 }
 
 export type AppSettingsUpdate = Partial<AppSettings>;
