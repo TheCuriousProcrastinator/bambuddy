@@ -13,6 +13,7 @@ export function spoolMatchesQuery(spool: InventorySpool, query: string): boolean
     (spool.brand?.toLowerCase().includes(q) ?? false) ||
     (spool.color_name?.toLowerCase().includes(q) ?? false) ||
     (spool.subtype?.toLowerCase().includes(q) ?? false) ||
+    (spool.stock_code?.toLowerCase().includes(q) ?? false) ||
     (spool.note?.toLowerCase().includes(q) ?? false) ||
     (spool.slicer_filament_name?.toLowerCase().includes(q) ?? false) ||
     (spool.storage_location?.toLowerCase().includes(q) ?? false)
