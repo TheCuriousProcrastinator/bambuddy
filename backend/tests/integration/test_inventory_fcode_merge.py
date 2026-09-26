@@ -131,3 +131,35 @@ async def test_merge_refuses_source_that_is_still_assigned(
 
     source_still_exists = await async_client.get(f"/api/v1/inventory/spools/{source.id}")
     assert source_still_exists.status_code == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_merge_rejects_mismatched_filament_identity(
+    async_client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """Typing the wrong existing F-code must not delete a different material row."""
+    target = await _spool(
+        db_session,
+        material="PLA",
+        note="F0001",
+        label_weight=2000,
+        weight_used=500,
+    )
+    source = await _spool(
+        db_session,
+        material="PETG",
+        note=None,
+        label_weight=1000,
+        weight_used=0,
+    )
+
+    response = await async_client.post(
+        f"/api/v1/inventory/spools/{source.id}/merge",
+        json={"target_spool_id": target.id, "code": "F0001"},
+    )
+    assert response.status_code == 409
+
+    source_still_exists = await async_client.get(f"/api/v1/inventory/spools/{source.id}")
+    assert source_still_exists.status_code == 200
