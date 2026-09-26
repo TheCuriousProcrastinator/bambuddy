@@ -36,6 +36,8 @@ export interface SpoolFormData {
   core_weight_catalog_id: number | null;
   weight_used: number;
   slicer_filament: string;
+  // Dedicated aggregate inventory identifier (F0001, F0002, ...).
+  stock_code: string;
   note: string;
   cost_per_kg: number | null;
   // User-defined category + per-spool low-stock threshold override (#729).
@@ -60,6 +62,7 @@ export const defaultFormData: SpoolFormData = {
   core_weight_catalog_id: null,
   weight_used: 0,
   slicer_filament: '',
+  stock_code: '',
   note: '',
   cost_per_kg: null,
   category: '',
