@@ -5538,11 +5538,12 @@ function PrinterCard({
                                 const activePrintSlotLabel = activePrintSlotIdx >= 0
                                   ? `P${activePrintSlotIdx + 1}`
                                   : null;
-                                // F-code is the user's short inventory code stored in the
-                                // spool note (for example F0008). The explicit slot assignment
-                                // is authoritative; in Spoolman mode use its assigned spool.
+                                // Inventory ID is the user's short aggregate stock code
+                                // (for example F0008). Internal inventory stores it in the
+                                // dedicated stock_code field; note remains as a temporary
+                                // fallback for pre-migration / Spoolman-backed rows.
                                 const codeSourceSpool = spoolmanEnabled ? slotSpoolForFill : inventoryAssignment?.spool;
-                                const rawFilamentCode = codeSourceSpool?.note?.trim().toUpperCase() ?? '';
+                                const rawFilamentCode = (codeSourceSpool?.stock_code || codeSourceSpool?.note || '').trim().toUpperCase();
                                 const slotFilamentCode = /^F\d{4}$/.test(rawFilamentCode) ? rawFilamentCode : null;
 
                                 // Slot visual content (goes inside hover card)
