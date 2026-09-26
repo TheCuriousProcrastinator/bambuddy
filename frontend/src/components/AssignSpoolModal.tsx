@@ -547,6 +547,11 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                                 : 'bg-bambu-dark border-bambu-dark-tertiary hover:border-bambu-gray'
                             }`}
                           >
+                            {filamentCodeMode && filamentCode(spool.note) && (
+                              <p className="text-xs font-mono font-semibold text-bambu-green mb-1">
+                                {filamentCode(spool.note)}
+                              </p>
+                            )}
                             <p className="text-white text-sm font-medium truncate">
                               {spool.brand ? `${spool.brand} ` : ''}{spool.material}{spool.subtype ? ` ${spool.subtype}` : ''}
                             </p>
@@ -564,7 +569,7 @@ export function AssignSpoolModal({ isOpen, onClose, printerId, amsId, trayId, tr
                                 {Math.max(0, Math.round(spool.label_weight - spool.weight_used))} / {spool.label_weight}g
                               </p>
                             )}
-                            {spool.note && (
+                            {spool.note && !filamentCodeMode && (
                               <p className="text-[10px] text-bambu-gray/70 mt-1 truncate" title={spool.note}>
                                 {spool.note}
                               </p>
