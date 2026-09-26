@@ -77,6 +77,18 @@ def normalize_effect_type(value: str | None) -> str | None:
     return canonical
 
 
+def normalize_stock_code(value: str | None) -> str | None:
+    """Canonical aggregate inventory code, e.g. F0001."""
+    if value is None:
+        return None
+    canonical = value.strip().upper()
+    if not canonical:
+        return None
+    if len(canonical) != 5 or not canonical.startswith("F") or not canonical[1:].isdigit():
+        raise ValueError("stock_code must use the F0000 format")
+    return canonical
+
+
 class SpoolBase(BaseModel):
     material: str = Field(..., min_length=1, max_length=50)
     subtype: str | None = None
@@ -109,7 +121,13 @@ class SpoolBase(BaseModel):
     slicer_filament_name: str | None = None
     nozzle_temp_min: int | None = None
     nozzle_temp_max: int | None = None
+    stock_code: str | None = Field(default=None, max_length=5)
     note: str | None = None
+
+    @field_validator("stock_code")
+    @classmethod
+    def _validate_stock_code(cls, v: str | None) -> str | None:
+        return normalize_stock_code(v)
     tag_uid: str | None = None
     tray_uuid: str | None = None
     data_origin: str | None = None
@@ -164,7 +182,13 @@ class SpoolUpdate(BaseModel):
     slicer_filament_name: str | None = None
     nozzle_temp_min: int | None = None
     nozzle_temp_max: int | None = None
+    stock_code: str | None = Field(default=None, max_length=5)
     note: str | None = None
+
+    @field_validator("stock_code")
+    @classmethod
+    def _validate_stock_code(cls, v: str | None) -> str | None:
+        return normalize_stock_code(v)
     tag_uid: str | None = None
     tray_uuid: str | None = None
     data_origin: str | None = None
