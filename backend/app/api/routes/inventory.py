@@ -1578,7 +1578,7 @@ async def merge_spool_into_existing_fcode(
         raise HTTPException(404, "Target spool not found")
     if target.archived_at is not None:
         raise HTTPException(409, "Target F-code spool is archived")
-    if _inventory_fcode(target.note) != code:
+    if _spool_fcode(target) != code:
         raise HTTPException(409, f"Target spool is no longer {code}")
 
     # A typo must not silently delete a different filament row. Material is
@@ -2392,7 +2392,7 @@ async def sync_weights_from_ams(
             skipped += 1
             continue
 
-        fcode = _inventory_fcode(spool.note)
+        fcode = _spool_fcode(spool)
         if fcode is not None:
             logger.debug(
                 "AMS weight sync: spool %d (%s) is an aggregate F-code stock bucket; "
@@ -2478,10 +2478,17 @@ async def sync_weights_from_ams(
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _inventory_fcode(note: str | None) -> str | None:
-    """Canonical aggregate-stock code stored in Spool.note, e.g. F0001."""
-    value = (note or "").strip().upper()
-    return value if len(value) == 5 and value.startswith("F") and value[1:].isdigit() else None
+def _inventory_fcode(value: str | None) -> str | None:
+    """Canonical aggregate-stock code, e.g. F0001."""
+    candidate = (value or "").strip().upper()
+    return candidate if len(candidate) == 5 and candidate.startswith("F") and candidate[1:].isdigit() else None
+
+
+def _spool_fcode(spool: Spool | None) -> str | None:
+    """Read the dedicated stock code, with legacy-note fallback during upgrades."""
+    if spool is None:
+        return None
+    return _inventory_fcode(spool.stock_code) or _inventory_fcode(spool.note)
 
 
 async def _spool_is_shared_across_slots(db: AsyncSession, spool_id: int) -> bool:
