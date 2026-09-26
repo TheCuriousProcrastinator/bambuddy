@@ -512,9 +512,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
       inputType="number"
       suffix="g"
       onSave={onUpdateNet ? async (value) => {
-        const grams = Number(value);
-        if (!Number.isFinite(grams) || grams < 0) throw new Error('Net weight must be 0 or greater');
-        await onUpdateNet(spool, Math.round(grams));
+        await onUpdateNet(spool, Number(value));
       } : undefined}
     />
   ),
@@ -991,6 +989,65 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     queryFn: () => api.getAssignments(),
     refetchInterval: 30000,
   });
+
+  const handleInlineNoteUpdate = async (spool: InventorySpool, rawValue: string) => {
+    if (spoolmanMode) return;
+
+    const trimmed = rawValue.trim();
+    const code = /^F\d{4}$/i.test(trimmed) ? trimmed.toUpperCase() : null;
+    const nextNote = code ?? (trimmed || null);
+
+    try {
+      if (code) {
+        const target = (spools || []).find(
+          (candidate) =>
+            candidate.id !== spool.id &&
+            !candidate.archived_at &&
+            (candidate.note || '').trim().toUpperCase() === code
+        );
+
+        if (target) {
+          await api.mergeSpoolIntoFCode(spool.id, target.id, code);
+          await Promise.all([
+            refreshSpoolQueries(),
+            queryClient.invalidateQueries({ queryKey: ['spool-assignments'] }),
+          ]);
+          showToast(`Merged into ${code}. Existing stock weight was kept.`, 'success');
+          return;
+        }
+      }
+
+      await api.updateSpool(spool.id, { note: nextNote });
+      await refreshSpoolQueries();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update filament code';
+      showToast(message, 'error');
+      throw error;
+    }
+  };
+
+  const handleInlineNetUpdate = async (spool: InventorySpool, grams: number) => {
+    if (spoolmanMode) return;
+    if (!Number.isFinite(grams) || grams < 0) {
+      const error = new Error('Net weight must be 0 or greater');
+      showToast(error.message, 'error');
+      throw error;
+    }
+
+    // Net is aggregate stock on hand. Preserve lifetime consumption and move
+    // label_weight so label_weight - weight_used equals the user's new stock.
+    // This lets a purchase increase on-hand grams without erasing usage history.
+    const nextLabelWeight = Math.max(0, Math.round(spool.weight_used + grams));
+
+    try {
+      await api.updateSpool(spool.id, { label_weight: nextLabelWeight });
+      await refreshSpoolQueries();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update net weight';
+      showToast(message, 'error');
+      throw error;
+    }
+  };
 
   // Spoolman-mode slot assignments. spool.id IS the spoolman_spool_id, so this
   // feeds into the same assignmentMap that the LOCATION column reads.
@@ -2501,6 +2558,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                           dateFormat={dateFormat}
                           t={t}
                           onSyncWeight={handleSyncWeight}
+                          onUpdateNote={spoolmanMode ? undefined : handleInlineNoteUpdate}
+                          onUpdateNet={spoolmanMode ? undefined : handleInlineNetUpdate}
                           colorizeLocationSensors={colorizeLocationSensors}
                           locationSensorAboveColor={locationSensorAboveColor}
                           locationSensorBelowColor={locationSensorBelowColor}
@@ -2534,6 +2593,8 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                         dateFormat={dateFormat}
                         t={t}
                         onSyncWeight={handleSyncWeight}
+                        onUpdateNote={spoolmanMode ? undefined : handleInlineNoteUpdate}
+                        onUpdateNet={spoolmanMode ? undefined : handleInlineNetUpdate}
                         colorizeLocationSensors={colorizeLocationSensors}
                         locationSensorAboveColor={locationSensorAboveColor}
                         locationSensorBelowColor={locationSensorBelowColor}
@@ -3081,6 +3142,7 @@ function SpoolTableRow({
   spool, remaining, pct, isSelected, onToggleSelected,
   onEdit, onCopy, onRestore, onArchive, onDelete, onPrintLabel, onResetConsumedCounter,
   visibleColumns, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight,
+  onUpdateNote, onUpdateNet,
   colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor,
 }: {
   spool: InventorySpool;
@@ -3103,6 +3165,8 @@ function SpoolTableRow({
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  onUpdateNote?: (spool: InventorySpool, value: string) => Promise<void>;
+  onUpdateNet?: (spool: InventorySpool, grams: number) => Promise<void>;
   colorizeLocationSensors: boolean;
   locationSensorAboveColor: LocationSensorAlertColor;
   locationSensorBelowColor: LocationSensorAlertColor;
@@ -3128,7 +3192,7 @@ function SpoolTableRow({
       </td>
       {visibleColumns.map((colId) => (
         <td key={colId} className="py-3 px-4">
-          {columnCells[colId]?.({ spool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor })}
+          {columnCells[colId]?.({ spool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight, onUpdateNote, onUpdateNet, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor })}
         </td>
       ))}
       <td className="py-3 px-4">
@@ -3178,6 +3242,7 @@ function SpoolTableGroup({
   spools, headerSpool, remaining, pct, isExpanded, onToggle,
   onEdit, onCopy, onArchive, onDelete, onPrintLabel, onResetConsumedCounter,
   visibleColumns, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight,
+  onUpdateNote, onUpdateNet,
   colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor,
   selectedIds, onToggleSelected, onToggleGroupSelected,
 }: {
@@ -3203,6 +3268,8 @@ function SpoolTableGroup({
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  onUpdateNote?: (spool: InventorySpool, value: string) => Promise<void>;
+  onUpdateNet?: (spool: InventorySpool, grams: number) => Promise<void>;
   colorizeLocationSensors: boolean;
   locationSensorAboveColor: LocationSensorAlertColor;
   locationSensorBelowColor: LocationSensorAlertColor;
@@ -3279,6 +3346,8 @@ function SpoolTableGroup({
             dateFormat={dateFormat}
             t={t}
             onSyncWeight={onSyncWeight}
+            onUpdateNote={onUpdateNote}
+            onUpdateNet={onUpdateNet}
             colorizeLocationSensors={colorizeLocationSensors}
             locationSensorAboveColor={locationSensorAboveColor}
             locationSensorBelowColor={locationSensorBelowColor}
