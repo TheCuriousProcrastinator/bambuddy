@@ -28,6 +28,7 @@ from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
 from backend.app.models.spool_filament_preset import SpoolFilamentPreset
 from backend.app.models.spool_k_profile import SpoolKProfile
+from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.user import User
 from backend.app.schemas.location import LocationCreate, LocationResponse, LocationUpdate
 from backend.app.schemas.spool import (
@@ -1522,6 +1523,122 @@ async def bulk_reset_spool_consumed_counter(
     return {"reset": len(spools)}
 
 
+class MergeSpoolRequest(BaseModel):
+    target_spool_id: int = Field(..., gt=0)
+    code: str = Field(..., min_length=5, max_length=5)
+
+
+@router.post("/spools/{source_spool_id}/merge", response_model=SpoolResponse)
+async def merge_spool_into_existing_fcode(
+    source_spool_id: int,
+    payload: MergeSpoolRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    """Merge an unassigned duplicate row into an existing F-code stock bucket.
+
+    The target's stock totals are deliberately authoritative: label_weight,
+    weight_used and therefore Net are NOT summed. This is for reconciling a
+    duplicate physical-spool row that is already represented by an aggregate
+    F-code bucket. Usage history and non-conflicting calibration metadata move
+    to the target before the duplicate row is removed.
+    """
+    if source_spool_id == payload.target_spool_id:
+        raise HTTPException(400, "Source and target spool must be different")
+
+    code = _inventory_fcode(payload.code)
+    if code is None:
+        raise HTTPException(400, "Merge code must use the F0000 format")
+
+    source = (
+        await db.execute(
+            select(Spool)
+            .options(
+                selectinload(Spool.assignments),
+                selectinload(Spool.k_profiles),
+                selectinload(Spool.filament_presets),
+            )
+            .where(Spool.id == source_spool_id)
+        )
+    ).scalar_one_or_none()
+    if source is None:
+        raise HTTPException(404, "Source spool not found")
+
+    target = (
+        await db.execute(
+            select(Spool)
+            .options(
+                selectinload(Spool.k_profiles),
+                selectinload(Spool.filament_presets),
+            )
+            .where(Spool.id == payload.target_spool_id)
+        )
+    ).scalar_one_or_none()
+    if target is None:
+        raise HTTPException(404, "Target spool not found")
+    if target.archived_at is not None:
+        raise HTTPException(409, "Target F-code spool is archived")
+    if _inventory_fcode(target.note) != code:
+        raise HTTPException(409, f"Target spool is no longer {code}")
+
+    # Merging an assigned source during an active/possible print can invalidate
+    # the usage tracker's print-start spool snapshot. The printer-page F-code
+    # picker is the safe way to move a live slot to the aggregate bucket first.
+    if source.assignments:
+        raise HTTPException(
+            409,
+            "This spool is still assigned to a printer. Assign the F-code from the printer slot first, then merge it.",
+        )
+
+    # Preserve historical usage instead of letting source deletion cascade it.
+    usage_rows = (
+        await db.execute(select(SpoolUsageHistory).where(SpoolUsageHistory.spool_id == source.id))
+    ).scalars().all()
+    for row in usage_rows:
+        row.spool_id = target.id
+
+    # Keep target calibration when an equivalent key already exists; otherwise
+    # carry the source calibration across.
+    target_k_keys = {
+        (row.printer_id, row.extruder, row.nozzle_diameter, row.nozzle_type)
+        for row in target.k_profiles
+    }
+    for row in list(source.k_profiles):
+        key = (row.printer_id, row.extruder, row.nozzle_diameter, row.nozzle_type)
+        if key in target_k_keys:
+            await db.delete(row)
+        else:
+            row.spool_id = target.id
+            target_k_keys.add(key)
+
+    # This table has a UNIQUE constraint on (spool, model, nozzle), so target
+    # wins on collisions and non-overlapping source overrides move across.
+    target_preset_keys = {
+        (row.printer_model, row.nozzle_diameter)
+        for row in target.filament_presets
+    }
+    for row in list(source.filament_presets):
+        key = (row.printer_model, row.nozzle_diameter)
+        if key in target_preset_keys:
+            await db.delete(row)
+        else:
+            row.spool_id = target.id
+            target_preset_keys.add(key)
+
+    if source.last_used and (target.last_used is None or source.last_used > target.last_used):
+        target.last_used = source.last_used
+
+    # Deliberately do not touch target.label_weight or target.weight_used.
+    await db.delete(source)
+    await db.commit()
+
+    result = await db.execute(
+        select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == target.id)
+    )
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return result.scalar_one()
+
+
 class BulkUpdateRequest(BaseModel):
     ids: list[int] = Field(..., min_length=1, max_length=500)
     update: SpoolUpdate
@@ -2256,6 +2373,17 @@ async def sync_weights_from_ams(
             skipped += 1
             continue
 
+        fcode = _inventory_fcode(spool.note)
+        if fcode is not None:
+            logger.debug(
+                "AMS weight sync: spool %d (%s) is an aggregate F-code stock bucket; "
+                "manual stock + usage tracking are authoritative",
+                spool.id,
+                fcode,
+            )
+            skipped += 1
+            continue
+
         if assignment_counts.get(spool.id, 0) > 1:
             logger.debug(
                 "AMS weight sync: spool %d is shared across %d slots; usage tracking is authoritative",
@@ -2329,6 +2457,12 @@ async def sync_weights_from_ams(
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+
+def _inventory_fcode(note: str | None) -> str | None:
+    """Canonical aggregate-stock code stored in Spool.note, e.g. F0001."""
+    value = (note or "").strip().upper()
+    return value if len(value) == 5 and value.startswith("F") and value[1:].isdigit() else None
 
 
 async def _spool_is_shared_across_slots(db: AsyncSession, spool_id: int) -> bool:
