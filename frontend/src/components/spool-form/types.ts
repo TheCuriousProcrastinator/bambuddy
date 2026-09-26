@@ -257,6 +257,10 @@ export function validateForm(
 ): ValidationResult {
   const errors: Partial<Record<keyof SpoolFormData, string>> = {};
 
+  if (!spoolmanMode && formData.stock_code.trim() && !/^F\d{4}$/i.test(formData.stock_code.trim())) {
+    errors.stock_code = 'Use the F0001 format';
+  }
+
   // Quick-add and Spoolman mode only require material (unless a catalog entry
   // is pre-selected). Edit and copy relax the same way (#1905): the spool
   // already exists, and a row created by quick-add, CSV import or an RFID scan
