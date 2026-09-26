@@ -220,13 +220,15 @@ describe('AssignSpoolModal', () => {
 
     const assignedElsewhere = {
       ...anotherManualSpool,
-      note: 'F0012',
+      stock_code: 'F0012',
+      note: null,
     };
     const zeroInventory = {
       ...manualSpool,
       id: 4,
       brand: 'EmptyRoll',
-      note: 'F0013',
+      stock_code: 'F0013',
+      note: null,
       weight_used: 1000,
     };
     const uncoded = {
