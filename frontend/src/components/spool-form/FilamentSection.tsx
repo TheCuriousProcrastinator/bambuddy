@@ -542,6 +542,9 @@ export function FilamentSection({
           <p className="mt-1 text-xs text-bambu-gray">
             Existing ID: merge into that stock total. New ID: keep this spool&apos;s current weight.
           </p>
+          {errors?.stock_code && (
+            <p className="mt-1 text-xs text-red-700 dark:text-red-400">{errors.stock_code}</p>
+          )}
         </div>
       )}
 
