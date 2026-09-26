@@ -25,6 +25,7 @@ const BASE_SPOOL = {
   slicer_filament_name: null,
   nozzle_temp_min: null,
   nozzle_temp_max: null,
+  stock_code: null,
   note: null,
   tag_uid: null,
   tray_uuid: null,
@@ -60,6 +61,7 @@ const COLUMN_CONFIG = JSON.stringify([
 
 type TestSpool = Record<string, unknown> & {
   id: number;
+  stock_code?: string | null;
   note: string | null;
   archived_at: string | null;
   brand: string | null;
@@ -70,13 +72,11 @@ type TestSpool = Record<string, unknown> & {
 describe('InventoryPage inline aggregate stock editing', () => {
   let spools: TestSpool[];
   let lastPatch: Record<string, unknown> | null;
-  let lastMerge: Record<string, unknown> | null;
 
   beforeEach(() => {
     localStorage.clear();
     spools = [];
     lastPatch = null;
-    lastMerge = null;
 
     server.use(
       http.get('/api/v1/settings/', () => HttpResponse.json({
@@ -108,15 +108,7 @@ describe('InventoryPage inline aggregate stock editing', () => {
         spools[index] = { ...spools[index], ...payload } as TestSpool;
         return HttpResponse.json(spools[index]);
       }),
-      http.post('/api/v1/inventory/spools/:id/merge', async ({ params, request }) => {
-        const sourceId = Number(params.id);
-        const payload = await request.json() as { target_spool_id: number; code: string };
-        lastMerge = payload;
-        const target = spools.find((spool) => spool.id === payload.target_spool_id);
-        if (!target) return HttpResponse.json({ detail: 'Target not found' }, { status: 404 });
-        spools = spools.filter((spool) => spool.id !== sourceId);
-        return HttpResponse.json(target);
-      }),
+,
     );
   });
 
@@ -146,70 +138,23 @@ describe('InventoryPage inline aggregate stock editing', () => {
     expect(lastPatch).not.toHaveProperty('weight_used');
   });
 
-  it('assigns a new F-code without changing the row weight', async () => {
-    const user = userEvent.setup();
+  it('shows the dedicated stock code in the ID column', async () => {
     spools = [{
       ...BASE_SPOOL,
       id: 12,
-      brand: 'New Code Test',
+      brand: 'ID Test',
+      stock_code: 'F0099',
+      note: 'real note stays separate',
       label_weight: 1000,
       weight_used: 150,
     }];
 
     render(<InventoryPageRouter />);
 
-    const row = (await screen.findByText('New Code Test')).closest('tr');
+    const row = (await screen.findByText('ID Test')).closest('tr');
     expect(row).not.toBeNull();
-
-    await user.click(within(row!).getByRole('button', { name: 'Edit Filament code or note' }));
-    const input = within(row!).getByRole('textbox', { name: 'Filament code or note' });
-    await user.type(input, 'F0099{enter}');
-
-    await waitFor(() => {
-      expect(lastPatch).toEqual({ note: 'F0099' });
-    });
-    expect(lastPatch).not.toHaveProperty('label_weight');
-    expect(lastPatch).not.toHaveProperty('weight_used');
-  });
-
-  it('merges an unassigned duplicate into an existing F-code without adding weight', async () => {
-    const user = userEvent.setup();
-    spools = [
-      {
-        ...BASE_SPOOL,
-        id: 20,
-        brand: 'Duplicate Row',
-        label_weight: 1000,
-        weight_used: 0,
-        note: null,
-      },
-      {
-        ...BASE_SPOOL,
-        id: 21,
-        brand: 'Aggregate Row',
-        label_weight: 2000,
-        weight_used: 987,
-        note: 'F0001',
-      },
-    ];
-
-    render(<InventoryPageRouter />);
-
-    const sourceRow = (await screen.findByText('Duplicate Row')).closest('tr');
-    expect(sourceRow).not.toBeNull();
-
-    await user.click(within(sourceRow!).getByRole('button', { name: 'Edit Filament code or note' }));
-    const input = within(sourceRow!).getByRole('textbox', { name: 'Filament code or note' });
-    await user.type(input, 'F0001{enter}');
-
-    await waitFor(() => {
-      expect(lastMerge).toEqual({ target_spool_id: 21, code: 'F0001' });
-    });
-
-    expect(lastPatch).toBeNull();
-    await waitFor(() => {
-      expect(screen.queryByText('Duplicate Row')).not.toBeInTheDocument();
-    });
-    expect(screen.getByText('Aggregate Row')).toBeInTheDocument();
+    expect(within(row!).getByText('F0099')).toBeInTheDocument();
+    expect(within(row!).queryByText('real note stays separate')).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'ID' })).toBeInTheDocument();
   });
 });
