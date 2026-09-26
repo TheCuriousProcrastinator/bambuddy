@@ -50,6 +50,7 @@ CSV_COLUMNS = [
     "nozzle_temp_min",
     "nozzle_temp_max",
     "last_used",
+    "stock_code",
     "note",
     "storage_location",
     "category",
