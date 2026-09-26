@@ -44,6 +44,7 @@ export function FilamentSection({
   suggestedBrands,
   suggestedMaterials,
   quickAdd,
+  stockCodeEnabled,
   detailsRequired,
   quantity,
   onQuantityChange,
@@ -519,7 +520,7 @@ export function FilamentSection({
 
       {/* Aggregate inventory ID. Kept separate from Note so free-form notes
           never accidentally become stock-bucket identifiers. */}
-      {!quickAdd && (
+      {!quickAdd && stockCodeEnabled && (
         <div>
           <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="spool-stock-code">
             Inventory ID
