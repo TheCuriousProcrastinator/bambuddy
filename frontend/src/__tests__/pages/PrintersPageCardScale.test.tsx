@@ -341,7 +341,7 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     const card = document.getElementById('printer-card-1');
     expect(card).not.toBeNull();
 
-    const section = within(card!).getByTestId('printer-controls-section');
+    const section = await within(card!).findByTestId('printer-controls-section');
     const trigger = within(card!).getByTestId('printer-controls-trigger');
     const secondary = within(card!).getByTestId('printer-secondary-controls');
     const headerActions = within(card!).getByTestId('printer-header-status-actions');
@@ -372,7 +372,7 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     const card = document.getElementById('printer-card-1');
     expect(card).not.toBeNull();
 
-    const section = within(card!).getByTestId('printer-controls-section');
+    const section = await within(card!).findByTestId('printer-controls-section');
     const secondary = within(card!).getByTestId('printer-secondary-controls');
     const actionsMenu = within(card!).getByTestId('printer-actions-menu');
     const footer = within(card!).getByTestId('printer-footer-actions');
