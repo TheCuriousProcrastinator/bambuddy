@@ -123,7 +123,8 @@ describe('InventoryPage inline aggregate stock editing', () => {
 
     render(<InventoryPageRouter />);
 
-    const row = (await screen.findByText('Net Test')).closest('tr');
+    const brand = (await screen.findAllByText('Net Test')).find((el) => el.closest('tr'));
+    const row = brand?.closest('tr') ?? null;
     expect(row).not.toBeNull();
 
     await user.click(within(row!).getByRole('button', { name: 'Edit Net weight' }));
@@ -150,7 +151,8 @@ describe('InventoryPage inline aggregate stock editing', () => {
 
     render(<InventoryPageRouter />);
 
-    const row = (await screen.findByText('ID Test')).closest('tr');
+    const brand = (await screen.findAllByText('ID Test')).find((el) => el.closest('tr'));
+    const row = brand?.closest('tr') ?? null;
     expect(row).not.toBeNull();
     expect(within(row!).getByText('F0099')).toBeInTheDocument();
     expect(within(row!).queryByText('real note stays separate')).not.toBeInTheDocument();
