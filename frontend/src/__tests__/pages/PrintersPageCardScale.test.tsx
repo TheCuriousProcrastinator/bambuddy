@@ -10,7 +10,7 @@
  * until the user reaches for a size that is already asking for more space.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { render } from '../utils';
 import { PrintersPage } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
@@ -201,6 +201,28 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
 
     expect(header!.compareDocumentPosition(humidity) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(humidity.compareDocumentPosition(currentJob) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it.each(['2', '3'])('removes legacy FILAMENTS and STATUS dividers from redesigned size %s', async (cardSize) => {
+    await cardStyleAt(cardSize);
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    await within(card!).findByText('Humidity');
+
+    expect(within(card!).queryByText('Filaments')).not.toBeInTheDocument();
+    expect(within(card!).queryByText('Status')).not.toBeInTheDocument();
+  });
+
+  it('keeps legacy FILAMENTS and STATUS dividers on S', async () => {
+    await cardStyleAt('1');
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    expect(await within(card!).findByText('Filaments')).toBeInTheDocument();
+    expect(within(card!).getByText('Status')).toBeInTheDocument();
   });
 
   it('leaves S at the same sizes — the dense fleet view wants density', async () => {

@@ -3926,14 +3926,16 @@ function PrinterCard({
                 <div className="mt-3">
                   {/* Section Header */}
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[length:var(--pc-t10,10px)] uppercase tracking-wider text-bambu-gray font-medium">
-                      {t('printers.filaments')}
-                    </span>
+                    {!isRedesignedCard && (
+                      <span className="text-[length:var(--pc-t10,10px)] uppercase tracking-wider text-bambu-gray font-medium">
+                        {t('printers.filaments')}
+                      </span>
+                    )}
                     <AmsBackupBadge
                       state={status.ams_filament_backup}
                       onClick={() => setAmsBackupModalOpen(true)}
                     />
-                    <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
+                    {!isRedesignedCard && <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />}
                     {/* Offered only when an AMS is present: on a printer that
                         feeds from the external spool alone, hiding it would
                         empty the row entirely (#1782). */}
@@ -3943,7 +3945,7 @@ function PrinterCard({
                           hidden={externalSpoolHidden}
                           onClick={toggleExternalSpool}
                         />
-                        <div className="w-3 h-[2px] bg-bambu-dark-tertiary" />
+                        {!isRedesignedCard && <div className="w-3 h-[2px] bg-bambu-dark-tertiary" />}
                       </>
                     )}
                   </div>
@@ -5700,12 +5702,14 @@ function PrinterCard({
             ) : (
               /* Expanded: Full status section */
               <>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[length:var(--pc-t10,10px)] uppercase tracking-wider text-bambu-gray font-medium">
-                    {t('printers.status.title', 'Status')}
-                  </span>
-                  <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
-                </div>
+                {!isRedesignedCard && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[length:var(--pc-t10,10px)] uppercase tracking-wider text-bambu-gray font-medium">
+                      {t('printers.status.title', 'Status')}
+                    </span>
+                    <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
+                  </div>
+                )}
 
                 {/* Current Print or Idle Placeholder */}
                 {(() => {

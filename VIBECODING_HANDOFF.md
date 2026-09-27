@@ -30,15 +30,15 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - PR base: `alex-custom`
 - PR head: `feature/printer-card-redesign-v2`
 
-Verified immediately before the Step 4 implementation commit:
+Verified immediately before the Step 5 implementation commit:
 
 - `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
 - `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
-- feature HEAD: `bb3912e313e216dd21bca16c2c6e598fb4fbf644`
-- feature branch: 12 commits ahead and 0 behind `alex-custom`
+- feature HEAD: `0c8bf1e449a8a49045b522073cf3916d9adb8d42`
+- feature branch: 13 commits ahead and 0 behind `alex-custom`
 - PR #2: open, draft, mergeable, clean
 
-The Step 4 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
+The Step 5 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
 
 ### Important branch rule
 
@@ -425,6 +425,23 @@ Focused regression coverage now verifies M document order:
 
 The test waits for async AMS/status content before checking document order.
 
+### Completed: Step 5 M/L divider cleanup
+
+Redesigned M/L cards no longer render the legacy `FILAMENTS` or `STATUS` section labels and horizontal rule dividers.
+
+The change is presentation-only:
+
+- AMS backup state remains rendered
+- the external-spool toggle remains rendered
+- AMS internals and callbacks are unchanged
+- current-job content is unchanged
+- S/XL keep the legacy divider presentation
+
+Focused regression coverage verifies:
+
+- M and L omit the legacy `FILAMENTS` and `STATUS` divider labels
+- S still renders both legacy divider labels
+
 ## GitHub CI
 
 Active PR workflow:
@@ -442,9 +459,9 @@ npm run check:i18n
 npm run build
 ```
 
-### Baseline CI before Step 4
+### Latest validated functional HEAD before Step 5
 
-For `6c4a97e6388daffcd6b578523fa7dea44743c92f`:
+For `0c8bf1e449a8a49045b522073cf3916d9adb8d42`:
 
 - Alex Custom PR CI: success
 - Frontend validation: success
@@ -624,7 +641,6 @@ Follow the design contract in order.
 
 Next remaining steps:
 
-5. Remove redundant FILAMENTS / STATUS visual dividers for redesigned M/L only.
 6. Restyle current-job surface only.
 7. Restyle telemetry grouping only.
 8. Restyle action/footer hierarchy only.
@@ -637,24 +653,24 @@ S and XL remain unchanged during this phase.
 
 ## Exact next development task
 
-**Step 5 only: remove redundant FILAMENTS / STATUS visual dividers for redesigned M/L cards.**
+**Step 6 only: restyle the current-job surface for redesigned M/L cards.**
 
-Before editing, inspect the current source and `docs/printer-card-redesign.md` to preserve the approved information hierarchy.
+Before editing, inspect the current current-job markup and `docs/printer-card-redesign.md`.
 
 Implementation constraints:
 
 - M/L only
 - S and XL remain unchanged
-- preserve the new AMS-before-current-job order
-- do not move sections again
-- do not rewrite AMS internals
+- preserve the approved header -> AMS -> current job -> telemetry -> actions order
+- preserve the Step 5 divider cleanup
+- do not move sections
 - do not change printer controls or mutations
 - do not change Spoolman or F-code behavior
 - do not change telemetry data
 - do not change permissions
 - keep the change visual and small
 
-Add or adjust focused regression coverage for the redesigned M/L-only divider behavior.
+Add or adjust focused regression coverage for the redesigned M/L current-job surface.
 
 Make this one small code change.
 
@@ -662,7 +678,7 @@ Update this handoff in the same meaningful commit.
 
 Then let GitHub PR CI finish.
 
-Do not continue to Step 6 until CI is green.
+Do not continue to Step 7 until CI is green.
 
 No Ninja action is required for this code-only step unless GitHub/source inspection cannot answer the issue.
 
@@ -718,4 +734,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-Continue from the exact active task only: Step 5, remove redundant FILAMENTS / STATUS visual dividers for redesigned M/L cards while keeping S/XL unchanged, preserve the new AMS-before-current-job order, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
+Continue from the exact active task only: Step 6, restyle the current-job surface for redesigned M/L cards while keeping S/XL unchanged, preserve the approved section order and Step 5 divider cleanup, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
