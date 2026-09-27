@@ -956,9 +956,10 @@ interface HumidityIndicatorProps {
   fairThreshold?: number;  // <= this is orange, > is red
   onClick?: () => void;
   compact?: boolean;  // Smaller version for grid layout
+  label?: string;     // Explicit label for redesigned M/L cards
 }
 
-function HumidityIndicator({ humidity, goodThreshold = 40, fairThreshold = 60, onClick, compact }: HumidityIndicatorProps) {
+function HumidityIndicator({ humidity, goodThreshold = 40, fairThreshold = 60, onClick, compact, label }: HumidityIndicatorProps) {
   const humidityValue = typeof humidity === 'string' ? parseInt(humidity, 10) : humidity;
   const good = typeof goodThreshold === 'number' ? goodThreshold : 40;
   const fair = typeof fairThreshold === 'number' ? fairThreshold : 60;
@@ -1001,6 +1002,11 @@ function HumidityIndicator({ humidity, goodThreshold = 40, fairThreshold = 60, o
       className={`flex items-center gap-1 ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
       title={`Humidity: ${humidityValue}% - ${statusText}${onClick ? ' (click for history)' : ''}`}
     >
+      {label && (
+        <span className={`font-normal text-bambu-gray ${compact ? 'text-[length:var(--pc-t10,10px)]' : 'text-xs'}`}>
+          {label}
+        </span>
+      )}
       <DropComponent className={compact ? "w-2.5 h-3" : "w-3 h-4"} />
       <span className={`font-medium tabular-nums ${compact ? 'text-[length:var(--pc-t10,10px)]' : 'text-xs'}`} style={{ color: textColor }}>{humidityValue}%</span>
     </button>
@@ -5420,6 +5426,7 @@ function PrinterCard({
                                       humidity={ams.humidity}
                                       goodThreshold={amsThresholds?.humidityGood}
                                       fairThreshold={amsThresholds?.humidityFair}
+                                      label={isRedesignedCard ? t('settings.humidity') : undefined}
                                       onClick={() => setAmsHistoryModal({
                                         amsId: ams.id,
                                         amsLabel: getAmsLabel(ams.id, ams.tray.length),
@@ -6286,6 +6293,7 @@ function PrinterCard({
                                       humidity={ams.humidity}
                                       goodThreshold={amsThresholds?.humidityGood}
                                       fairThreshold={amsThresholds?.humidityFair}
+                                      label={isRedesignedCard ? t('settings.humidity') : undefined}
                                       onClick={() => setAmsHistoryModal({
                                         amsId: ams.id,
                                         amsLabel: getAmsLabel(ams.id, ams.tray.length),
