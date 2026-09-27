@@ -435,12 +435,12 @@ The change is presentation-only:
 - the external-spool toggle remains rendered
 - AMS internals and callbacks are unchanged
 - current-job content is unchanged
-- S/XL keep the legacy divider presentation
+- S/XL behavior remains unchanged; XL keeps the legacy divider presentation and S keeps its compact layout
 
 Focused regression coverage verifies:
 
 - M and L omit the legacy `FILAMENTS` and `STATUS` divider labels
-- S still renders both legacy divider labels
+- XL still renders both legacy divider labels
 
 ## GitHub CI
 

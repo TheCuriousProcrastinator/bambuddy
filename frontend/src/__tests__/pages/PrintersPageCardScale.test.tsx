@@ -209,14 +209,14 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     const card = document.getElementById('printer-card-1');
     expect(card).not.toBeNull();
 
-    await within(card!).findByText('Humidity');
+    await within(card!).findAllByText('Humidity');
 
     expect(within(card!).queryByText('Filaments')).not.toBeInTheDocument();
     expect(within(card!).queryByText('Status')).not.toBeInTheDocument();
   });
 
-  it('keeps legacy FILAMENTS and STATUS dividers on S', async () => {
-    await cardStyleAt('1');
+  it('keeps legacy FILAMENTS and STATUS dividers on XL', async () => {
+    await cardStyleAt('4');
 
     const card = document.getElementById('printer-card-1');
     expect(card).not.toBeNull();
