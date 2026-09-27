@@ -1,0 +1,42 @@
+name: Printer Card Redesign CI
+
+on:
+  push:
+    branches:
+      - feature/printer-card-redesign
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: printer-card-redesign-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+      - name: Printer page regression tests
+        working-directory: frontend
+        run: |
+          npm run test:run -- \
+            src/__tests__/pages/PrintersPage.test.tsx \
+            src/__tests__/pages/PrintersPageCardScale.test.tsx \
+            src/__tests__/pages/PrintersPageCompactMetrics.test.tsx
+      - name: Production frontend build
+        working-directory: frontend
+        run: npm run build
