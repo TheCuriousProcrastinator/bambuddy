@@ -659,6 +659,7 @@ Do not mix dependency upgrades into the printer-card redesign.
 - focused CI uses explicit Vitest file paths for predictable selection
 - humidity regression test must wait for async status rendering and use an all-elements query because the fixture contains multiple AMS humidity labels
 - S uses the compact legacy card path and does not render the FILAMENTS/STATUS divider rows; XL is the correct legacy expanded regression target
+- `CoverImage` applies sizing classes to its wrapper div; the inner img is always `w-full h-full`, so current-job size regressions must assert the wrapper
 - AMS JSX was extracted specifically to make the next move a tiny diff
 - source/UI mismatch may be a stale Docker image rather than source code
 - verify live container/source before editing to fix a visual mismatch

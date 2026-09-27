@@ -254,9 +254,9 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect(surface!.className).toContain('bg-black/10');
     expect(surface!.className).toContain('p-3');
 
-    const cover = surface!.querySelector('img');
-    expect(cover).not.toBeNull();
-    expect(cover!.className).toContain(coverWidth);
+    const coverWrapper = surface!.querySelector('img')?.parentElement;
+    expect(coverWrapper).not.toBeNull();
+    expect(coverWrapper!.className).toContain(coverWidth);
 
     const content = jobTitle.parentElement;
     expect(content).not.toBeNull();
