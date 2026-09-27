@@ -364,13 +364,27 @@ The older `CARD_BODY_SCALE` remains for legacy body/icon scaling.
 
 ## Current redesign implementation
 
-Latest pre-polish validation checkpoint:
+Final validated printer-card redesign HEAD:
 
-`6961195e159c977c6aa0d5282433f8b62c8c020e`
+`ea9d13ae8fbbdf1591b05fdfe608a15023d8453e`
 
-At that Step 9 HEAD, GitHub CI/Security were green, Ninja was rebuilt and healthy, the full frontend suite passed, and Alex reviewed live M/L P1S + AMS cards.
+Step 10 is complete.
 
-The commit containing this handoff adds only the final M/L spacing polish described below. The redesign remains open until this polish passes its own CI/Security checks and one final live M/L visual verification.
+Verified for the final spacing-polish HEAD:
+
+- Alex Custom PR CI: success
+- Security Audit: success
+- focused printer-card regression tests: success
+- production frontend build: success
+- Ninja source checkout synced to `ea9d13ae`
+- custom Docker image rebuilt successfully
+- Compose service recreated successfully
+- `/health` returned `{"status":"healthy"}` after the container finished starting
+- Alex manually reviewed the final live M P1S + AMS card and approved the spacing/aesthetic result
+
+The full frontend suite was run immediately before the final spacing polish at Step 9 HEAD `6961195e`: 258 test files / 3539 tests passed, and i18n parity passed for every locale. The final polish then passed its focused M/L regression coverage, lint, type check, production build, and Security Audit.
+
+L had already passed live visual review before the final polish. M and L share one composition and the final spacing values are covered for both sizes by focused regression tests. Alex explicitly chose not to repeat manual S/XL screenshots; automated legacy-size coverage remains in place.
 
 ### Completed: design contract
 
@@ -632,9 +646,9 @@ npm run check:i18n
 npm run build
 ```
 
-### Latest validated functional HEAD through Step 8
+### Final validated redesign HEAD
 
-For `3789af8b4515832125ba4ba239d58f7044a319df`:
+For `ea9d13ae8fbbdf1591b05fdfe608a15023d8453e`:
 
 - Alex Custom PR CI: success
 - Frontend validation: success
@@ -642,26 +656,20 @@ For `3789af8b4515832125ba4ba239d58f7044a319df`:
 - type check: success
 - focused printer-card regression tests: success
 - production frontend build: success
-- live Ninja Docker health check: success
-- manual redesigned M/L P1S + AMS visual validation: success
+- Security Audit: success
+- Ninja Docker rebuild/recreate: success
+- live `/health`: success
+- final live M P1S + AMS visual validation: success
 
-Security Audit: success, including:
+Security Audit passed all configured jobs, including frontend/backend audits, Bandit, and Trivy.
 
-- Frontend Security Audit
-- Backend Security Audit
-- Bandit / Python security analysis
-- Trivy / container security scan
-
-Earlier on the branch, the full frontend suite reported:
+Final milestone full-suite result, run on Step 9 HEAD `6961195e` immediately before the spacing-only polish:
 
 - 258 test files passed
-- 3,520 tests passed
+- 3539 tests passed
+- i18n parity passed for every locale
 
-before a later commit cancelled the run during the subsequent build step.
-
-The fast PR gate intentionally uses the focused printer-card regression suite.
-
-A full frontend suite is still required at final redesign validation.
+The spacing-only final commit then passed the focused M/L regression suite plus the complete PR CI and Security gates.
 
 ## Development workflow
 
@@ -819,29 +827,23 @@ Do not mix these into the printer-card redesign unless a real regression appears
 
 ## Remaining printer-card redesign backlog
 
-Only final validation of the M/L spacing polish remains.
+None for the approved M/L redesign. Steps 1-10 are complete.
 
-The pre-polish Step 10 full suite and live M/L review already passed. Do not add more redesign work unless the new polish exposes a real regression.
+Do not continue polishing or refactoring the printer cards unless the user identifies a concrete regression or starts a new design task.
 
 ## Exact next development task
 
-**Validate this final M/L spacing polish only.**
+There is no active redesign implementation task.
 
-1. Verify this commit's Alex Custom PR CI and Security Audit are green.
-2. Rebuild/recreate the customized Ninja Docker runtime from the feature branch.
-3. Confirm `/health` is healthy.
-4. Visually verify the live M and L P1S + AMS cards have better breathing room without changing width, composition, typography, AMS behavior, telemetry content, or controls.
-5. If that passes, close Step 10 and decide separately whether to merge/version/tag/release.
+PR #2 remains open and draft on `feature/printer-card-redesign-v2` with base `alex-custom`. Merge, version bump, tag, or release are separate actions and must not be performed unless explicitly requested.
 
-Alex explicitly opted to skip additional manual S/XL screenshots. Preserve the existing automated legacy-size regression coverage and do not alter S/XL code paths.
-
-Do not merge, version-bump, tag, or release until this final polish validation is complete.
+Deferred custom-fork validation items listed above remain separate backlog and should not be mixed into a release/merge unless the user asks.
 
 ## Local Ninja command when visual testing is actually needed
 
 Run on Ninja only when a real local deployment/runtime test is needed.
 
-Verified source sync + rebuild/recreate flow as of the Step 8 checkpoint:
+Verified source sync + rebuild/recreate flow as of the final Step 10 validation:
 
 ```bash
 cd "/Users/ninja/docker/bambuddy/.bambuddy-custom-v1.2.5.5" || exit 1
@@ -898,4 +900,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-Continue from the exact active task only: validate the final M/L spacing-polish commit. Verify its PR CI and Security Audit, rebuild the customized Ninja Docker runtime, confirm health, and do one final live M/L P1S + AMS visual check. The pre-polish full suite already passed 258 files / 3539 tests plus i18n parity. Alex explicitly skipped additional manual S/XL screenshots, so preserve the existing automated legacy-size coverage and do not alter S/XL. Do not merge/version/tag/release until the final polish validation passes.
+The approved M/L printer-card redesign is complete and validated through `ea9d13ae`. Verify the current repo/branch/PR state before any new work. PR #2 is still draft and based on `alex-custom`. Do not make more redesign changes unless the user identifies a regression or starts a new task. Do not merge, version-bump, tag, or release unless explicitly requested. Preserve the existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, MQTT-derived behavior, and the validated M/L composition.
