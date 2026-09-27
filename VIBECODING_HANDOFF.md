@@ -45,23 +45,23 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - Visibility: public fork of `maziggy/bambuddy`
 - Default branch: `main`
 - Custom stable branch: `alex-custom`
-- Active development branch: `feature/printer-card-redesign-v2`
-- Active draft PR: **#2 - Redesign M/L printer cards incrementally**
-- PR base: `alex-custom`
-- PR head: `feature/printer-card-redesign-v2`
+- Active development branch: none
+- Printer-card feature branch: `feature/printer-card-redesign-v2` (historical/completed)
+- PR #2 - **Redesign M/L printer cards incrementally** - merged into `alex-custom`
+- PR merge commit: `a645ca6b78a1190e2a9e26dc1ebc14a2ad2fe6c1`
 
-Verified for the Step 8 release checkpoint before this handoff-only commit:
+Current stable state after the printer-card project:
 
-- `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
-- `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
-- feature HEAD: `3789af8b4515832125ba4ba239d58f7044a319df`
-- feature branch: 21 commits ahead and 0 behind `alex-custom`
-- PR #2: open, draft, mergeable
-- Alex Custom PR CI for `3789af8`: success
-- Security Audit for `3789af8`: success
-- live Ninja Docker/UI visual validation through Step 8: passed
+- `alex-custom` contains the complete validated redesign
+- final feature HEAD before merge: `746c37d891465efbf492aa7dd34253e4e927ef83`
+- final app-code commit: `ea9d13ae8fbbdf1591b05fdfe608a15023d8453e`
+- PR #2: merged and closed
+- Alex Custom PR CI for the final feature state: success
+- Security Audit for the final feature state: success
+- Ninja Docker/UI validation: passed
+- full frontend milestone suite before the spacing-only final polish: 258 test files / 3539 tests passed, plus i18n parity
 
-This release-checkpoint commit updates documentation only. Always verify the actual current HEAD before changing anything.
+Always verify the actual current `alex-custom` HEAD before changing anything.
 
 ### Important branch rule
 
@@ -69,9 +69,11 @@ Do **not** use `main` as the custom development baseline.
 
 The custom fork work lives on `alex-custom`.
 
-At handoff creation, `alex-custom` and `main` were significantly diverged. Treat `alex-custom` as the custom stable base and the active feature branch as the current work branch.
+`alex-custom` and `main` are intentionally different. Treat `alex-custom` as the custom stable development baseline.
 
-Do not casually merge/rebase `main` into `alex-custom` during printer-card work.
+The printer-card feature branch has already been merged. Start future custom work from the current `alex-custom` unless the user explicitly chooses another base.
+
+Do not casually merge/rebase `main` into `alex-custom`.
 
 ## Current application version and release state
 
@@ -89,9 +91,9 @@ Verified release/tag state:
 
 `alex-custom` contains unreleased custom commits after the `v1.2.5.6` tag.
 
-No new application version has been assigned for the printer-card redesign.
+No new application version was assigned as part of the printer-card redesign.
 
-Do not bump the version or create a release until the redesign has passed automated and manual validation.
+The redesign has now passed automated and manual validation and is merged into `alex-custom`. Version bump, tag, or release remain separate actions and should happen only when explicitly requested.
 
 ## Runtime and deployment
 
@@ -109,9 +111,9 @@ Historical verified local deployment:
 
 The checkout directory name is stale. Source version is 1.2.5.6.
 
-The Ninja source checkout was explicitly synced by the user through Step 9 HEAD `6961195e`.
+The Ninja source checkout was explicitly synced by the user through final feature HEAD `746c37d8`.
 
-The live Docker runtime was rebuilt from that checkout on September 27, 2026, `/health` was healthy, and Alex reviewed the live M/L P1S + AMS layout before requesting the final spacing polish.
+The live Docker runtime was built from final app-code commit `ea9d13ae` on September 27, 2026. `/health` returned healthy, and Alex approved the final live M P1S + AMS spacing/aesthetic result. The subsequent `746c37d8` commit changed only this handoff file.
 
 Verified runtime details:
 
@@ -835,9 +837,11 @@ Do not continue polishing or refactoring the printer cards unless the user ident
 
 There is no active redesign implementation task.
 
-PR #2 remains open and draft on `feature/printer-card-redesign-v2` with base `alex-custom`. Merge, version bump, tag, or release are separate actions and must not be performed unless explicitly requested.
+PR #2 has been merged into `alex-custom` at merge commit `a645ca6b78a1190e2a9e26dc1ebc14a2ad2fe6c1`.
 
-Deferred custom-fork validation items listed above remain separate backlog and should not be mixed into a release/merge unless the user asks.
+The printer-card redesign project is finished. Version bump, tag, release, branch deletion, or a new development task are separate actions and must not be performed unless explicitly requested.
+
+Deferred custom-fork validation items listed above remain separate backlog.
 
 ## Local Ninja command when visual testing is actually needed
 
@@ -851,8 +855,8 @@ set -e
 export GIT_PAGER=cat
 
 git fetch origin
-git switch feature/printer-card-redesign-v2
-git pull --ff-only origin feature/printer-card-redesign-v2
+git switch alex-custom
+git pull --ff-only origin alex-custom
 
 docker build -t bambuddy-local:1.2.5.5-fnote .
 
@@ -894,10 +898,10 @@ Do not turn it into a chronological transcript.
 
 Read the full handoff first.
 
-Treat it as historical context, but verify the current GitHub repository, `alex-custom`, `feature/printer-card-redesign-v2`, PR #2, HEAD commit, CI status, version, and relevant source before changing anything.
+Treat it as historical context, but verify the current GitHub repository, `alex-custom` HEAD, version/release state, relevant source, and any newly active branch/PR before changing anything.
 
 Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-The approved M/L printer-card redesign is complete and validated through `ea9d13ae`. Verify the current repo/branch/PR state before any new work. PR #2 is still draft and based on `alex-custom`. Do not make more redesign changes unless the user identifies a regression or starts a new task. Do not merge, version-bump, tag, or release unless explicitly requested. Preserve the existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, MQTT-derived behavior, and the validated M/L composition.
+The approved M/L printer-card redesign is complete, validated, and merged into `alex-custom` through PR #2. Final app code is `ea9d13ae`; merge commit is `a645ca6b`. There is no active development task. Start future custom work from the current `alex-custom` unless the user explicitly chooses another base. Do not version-bump, tag, release, delete branches, or continue redesign work unless explicitly requested. Preserve the existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, MQTT-derived behavior, and the validated M/L composition.
