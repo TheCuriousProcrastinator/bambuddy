@@ -17,6 +17,22 @@ The fork adds custom behavior on top of upstream Bambuddy, including:
 
 The current development phase is the **M/L printer-card redesign**.
 
+### Interim checkpoint - September 27, 2026
+
+This file is intentionally refreshed as a safe resume point before Step 6.
+
+Verified immediately before this handoff-only checkpoint commit:
+
+- feature HEAD: `f811b07163adb444ba9e99676155b572e5494b8b`
+- feature branch: 15 commits ahead and 0 behind `alex-custom`
+- PR #2: open, draft, mergeable
+- Alex Custom PR CI: success
+- Security Audit: success
+- Ninja source checkout was synced by the user to `f811b071`
+- current Docker/runtime UI has not been rebuilt or visually validated from this redesign branch
+
+This checkpoint commit changes documentation only. The exact next development task remains Step 6.
+
 This redesign must remain visual and incremental. Preserve printer controls, AMS interactions, inventory integration, permissions, MQTT-derived state, and existing workflows.
 
 ## Repository and branch model
@@ -30,15 +46,17 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - PR base: `alex-custom`
 - PR head: `feature/printer-card-redesign-v2`
 
-Verified immediately before the Step 5 implementation commit:
+Current checkpoint verification:
 
 - `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
 - `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
-- feature HEAD: `0c8bf1e449a8a49045b522073cf3916d9adb8d42`
-- feature branch: 13 commits ahead and 0 behind `alex-custom`
-- PR #2: open, draft, mergeable, clean
+- last functional feature HEAD before this documentation-only checkpoint: `f811b07163adb444ba9e99676155b572e5494b8b`
+- feature branch: 15 commits ahead and 0 behind `alex-custom`
+- PR #2: open, draft, mergeable
+- Alex Custom PR CI for `f811b071`: success
+- Security Audit for `f811b071`: success
 
-The Step 5 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
+This documentation-only checkpoint commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
 
 ### Important branch rule
 
@@ -86,11 +104,11 @@ Historical verified local deployment:
 
 The checkout directory name is stale. Source version is 1.2.5.6.
 
-The last explicitly observed Ninja source state in the previous development phase was behind the current feature branch.
+The Ninja source checkout was explicitly synced by the user through functional HEAD `f811b071`.
 
-No Docker deployment of the current printer-card redesign branch has been verified yet.
+No Docker rebuild/restart or visual runtime validation of the current printer-card redesign branch has been verified yet.
 
-Treat the live Bambuddy runtime as **not yet validated against the redesign branch**.
+Treat the live Bambuddy runtime as **not yet validated against the redesign branch**, even though the source checkout is current through `f811b071`.
 
 ### Compose rule
 
@@ -459,9 +477,9 @@ npm run check:i18n
 npm run build
 ```
 
-### Latest validated functional HEAD before Step 5
+### Latest validated functional HEAD before this interim checkpoint
 
-For `0c8bf1e449a8a49045b522073cf3916d9adb8d42`:
+For `f811b07163adb444ba9e99676155b572e5494b8b`:
 
 - Alex Custom PR CI: success
 - Frontend validation: success
@@ -618,7 +636,8 @@ Do not mix dependency upgrades into the printer-card redesign.
 - lint can take noticeable time even for tiny changes
 - prep initially failed lint because `isRedesignedCard` was introduced before use
 - focused CI uses explicit Vitest file paths for predictable selection
-- humidity regression test must wait for async status rendering
+- humidity regression test must wait for async status rendering and use an all-elements query because the fixture contains multiple AMS humidity labels
+- S uses the compact legacy card path and does not render the FILAMENTS/STATUS divider rows; XL is the correct legacy expanded regression target
 - AMS JSX was extracted specifically to make the next move a tiny diff
 - source/UI mismatch may be a stale Docker image rather than source code
 - verify live container/source before editing to fix a visual mismatch
