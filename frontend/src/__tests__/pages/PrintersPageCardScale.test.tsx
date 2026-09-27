@@ -176,6 +176,33 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect((await screen.findAllByText('Humidity')).length).toBeGreaterThan(0);
   });
 
+  it('orders redesigned M content as printer header, AMS, then current job', async () => {
+    server.use(
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+        ...STATUS,
+        state: 'RUNNING',
+        current_print: 'order-test.3mf',
+        subtask_name: 'Order Test Job',
+        progress: 42,
+        remaining_time: 30,
+      })),
+    );
+
+    await cardStyleAt('2');
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const header = card!.querySelector('h3');
+    expect(header).not.toBeNull();
+
+    const humidity = (await screen.findAllByText('Humidity'))[0];
+    const currentJob = await screen.findByText('Order Test Job');
+
+    expect(header!.compareDocumentPosition(humidity) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(humidity.compareDocumentPosition(currentJob) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
   it('leaves S at the same sizes — the dense fleet view wants density', async () => {
     const style = await cardStyleAt('1');
 

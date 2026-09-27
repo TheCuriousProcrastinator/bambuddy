@@ -5625,6 +5625,8 @@ function PrinterCard({
           </>
         ) : status?.connected && (
           <>
+            {isRedesignedCard && amsSection}
+
             {/* Compact: Simple status bar */}
             {viewMode === 'compact' ? (
               (() => {
@@ -6579,7 +6581,7 @@ function PrinterCard({
               );
             })()}
 
-            {amsSection}
+            {!isRedesignedCard && amsSection}
           </>
         )}
 

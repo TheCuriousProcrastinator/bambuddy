@@ -30,15 +30,15 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - PR base: `alex-custom`
 - PR head: `feature/printer-card-redesign-v2`
 
-Verified before this handoff-only commit:
+Verified immediately before the Step 4 implementation commit:
 
 - `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
 - `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
-- functional feature HEAD: `6c4a97e6388daffcd6b578523fa7dea44743c92f`
-- feature branch: 11 commits ahead and 0 behind `alex-custom`
+- feature HEAD: `bb3912e313e216dd21bca16c2c6e598fb4fbf644`
+- feature branch: 12 commits ahead and 0 behind `alex-custom`
 - PR #2: open, draft, mergeable, clean
 
-This handoff commit advances the feature branch by one documentation-only commit. Always verify the actual current HEAD before changing anything.
+The Step 4 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
 
 ### Important branch rule
 
@@ -397,17 +397,13 @@ Purpose:
 
 Allow the AMS surface to move without copying or rewriting behavior.
 
-### Critical current state
+### Completed: Step 4 M/L AMS reorder
 
-**AMS has not yet moved to its final position.**
+The already-extracted `amsSection` now renders above the current-job/status surface for redesigned M/L cards only.
 
-Current source still renders:
+Legacy S/XL cards keep the previous bottom AMS placement.
 
-`{amsSection}`
-
-near the bottom of the connected-printer content, after current status/controls.
-
-The extraction intentionally preserved:
+The move does not duplicate or rewrite AMS internals and preserves:
 
 - slot rendering
 - assignment logic
@@ -423,7 +419,11 @@ The extraction intentionally preserved:
 - permissions
 - callbacks/mutations
 
-Do not rewrite AMS internals as part of the move.
+Focused regression coverage now verifies M document order:
+
+`printer header -> AMS -> current job`
+
+The test waits for async AMS/status content before checking document order.
 
 ## GitHub CI
 
@@ -442,7 +442,7 @@ npm run check:i18n
 npm run build
 ```
 
-### Latest functional HEAD CI
+### Baseline CI before Step 4
 
 For `6c4a97e6388daffcd6b578523fa7dea44743c92f`:
 
@@ -624,7 +624,6 @@ Follow the design contract in order.
 
 Next remaining steps:
 
-4. Move AMS above the current job for redesigned M/L only.
 5. Remove redundant FILAMENTS / STATUS visual dividers for redesigned M/L only.
 6. Restyle current-job surface only.
 7. Restyle telemetry grouping only.
@@ -638,50 +637,24 @@ S and XL remain unchanged during this phase.
 
 ## Exact next development task
 
-**Step 4 only: move the already-extracted AMS section above the current job for redesigned M/L cards.**
+**Step 5 only: remove redundant FILAMENTS / STATUS visual dividers for redesigned M/L cards.**
 
-Do not redesign AMS styling in the same commit.
+Before editing, inspect the current source and `docs/printer-card-redesign.md` to preserve the approved information hierarchy.
 
 Implementation constraints:
 
-- keep the existing `amsSection` closure exactly as-is
-- render it near the top of the existing connected-printer branch for `isRedesignedCard`
-- preserve the existing bottom position for legacy S/XL
-- do not render it twice
-- preserve maintenance-mode behavior
-- do not change AMS callbacks
-- do not change mutations
-- do not change slot markup
-- do not change Spoolman behavior
-- do not change F-code behavior
-- do not change drying behavior
-- do not change hover cards
-- do not change external-spool behavior
+- M/L only
+- S and XL remain unchanged
+- preserve the new AMS-before-current-job order
+- do not move sections again
+- do not rewrite AMS internals
+- do not change printer controls or mutations
+- do not change Spoolman or F-code behavior
+- do not change telemetry data
 - do not change permissions
+- keep the change visual and small
 
-Conceptual shape:
-
-```tsx
-status?.connected && (
-  <>
-    {isRedesignedCard && amsSection}
-    {/* existing current job / telemetry / controls */}
-    {!isRedesignedCard && amsSection}
-  </>
-)
-```
-
-Verify the precise insertion point in current source before editing.
-
-### Required focused test
-
-Add or update a regression test for M document order:
-
-`printer header -> AMS -> current job`
-
-The test must wait for async printer status/AMS data before checking order.
-
-### Commit discipline
+Add or adjust focused regression coverage for the redesigned M/L-only divider behavior.
 
 Make this one small code change.
 
@@ -689,7 +662,7 @@ Update this handoff in the same meaningful commit.
 
 Then let GitHub PR CI finish.
 
-Do not continue to step 5 until CI is green.
+Do not continue to Step 6 until CI is green.
 
 No Ninja action is required for this code-only step unless GitHub/source inspection cannot answer the issue.
 
@@ -745,4 +718,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-Continue from the exact active task only: move the already-extracted `amsSection` above the current job for redesigned M/L cards, keep legacy S/XL placement unchanged, add focused document-order coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
+Continue from the exact active task only: Step 5, remove redundant FILAMENTS / STATUS visual dividers for redesigned M/L cards while keeping S/XL unchanged, preserve the new AMS-before-current-job order, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
