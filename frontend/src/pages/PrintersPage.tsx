@@ -1987,6 +1987,47 @@ const DRYING_PRESETS: Record<string, DryingPreset> = {
 // the same control the request asked to have this follow.
 const CARD_BODY_SCALE: Record<number, number> = { 1: 1, 2: 1, 3: 1.2, 4: 1.4 };
 
+/**
+ * M/L printer-card redesign tokens.
+ *
+ * M and L deliberately share one composition. L is only a proportional
+ * scale-up of M, so future redesign styling should read from this table rather
+ * than introducing size-specific markup branches.
+ *
+ * These tokens are introduced before the visual redesign and are intentionally
+ * unused in this commit. That keeps this step behavior-neutral and gives the
+ * following visual commits one shared source of truth.
+ */
+const PRINTER_CARD_REDESIGN_SCALE: Record<2 | 3, {
+  scale: number;
+  targetWidthRem: number;
+  outerPaddingPx: number;
+  majorGapPx: number;
+  minorGapPx: number;
+  controlHeightPx: number;
+}> = {
+  2: {
+    scale: 1,
+    targetWidthRem: 45,
+    outerPaddingPx: 16,
+    majorGapPx: 16,
+    minorGapPx: 8,
+    controlHeightPx: 36,
+  },
+  3: {
+    scale: 1.2,
+    targetWidthRem: 56,
+    outerPaddingPx: 20,
+    majorGapPx: 20,
+    minorGapPx: 10,
+    controlHeightPx: 43,
+  },
+};
+
+function isPrinterCardRedesignSize(cardSize: number): cardSize is 2 | 3 {
+  return cardSize === 2 || cardSize === 3;
+}
+
 // The scaled sizes, handed to the card subtree as custom properties. Every
 // converted class names its old fixed value as the fallback, so anything that
 // renders outside a card root -- the portalled temperature popover -- keeps
@@ -3447,6 +3488,11 @@ function PrinterCard({
   // returns, where a hook would break the rules-of-hooks ordering, and
   // building ten strings per render costs nothing.
   const cardScaleStyle = buildCardScaleStyle(cardSize);
+  // Feature gate for the incremental M/L redesign. No rendering changes in
+  // this commit; later commits use this flag one section at a time.
+  const isRedesignedCard = viewMode === 'expanded' && isPrinterCardRedesignSize(cardSize);
+  const redesignScale = isPrinterCardRedesignSize(cardSize) ? PRINTER_CARD_REDESIGN_SCALE[cardSize] : null;
+  void redesignScale;
 
   const getImageSize = () => {
     switch (cardSize) {
