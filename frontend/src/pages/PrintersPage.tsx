@@ -2000,9 +2000,8 @@ const CARD_BODY_SCALE: Record<number, number> = { 1: 1, 2: 1, 3: 1.2, 4: 1.4 };
  * scale-up of M, so future redesign styling should read from this table rather
  * than introducing size-specific markup branches.
  *
- * These tokens are introduced before the visual redesign and are intentionally
- * unused in this commit. That keeps this step behavior-neutral and gives the
- * following visual commits one shared source of truth.
+ * Shared geometry for redesigned M/L cards. Keep spacing changes here so M/L
+ * retain one composition while L scales up proportionally.
  */
 const PRINTER_CARD_REDESIGN_SCALE: Record<2 | 3, {
   scale: number;
@@ -2010,22 +2009,25 @@ const PRINTER_CARD_REDESIGN_SCALE: Record<2 | 3, {
   outerPaddingPx: number;
   majorGapPx: number;
   minorGapPx: number;
+  surfacePaddingPx: number;
   controlHeightPx: number;
 }> = {
   2: {
     scale: 1,
     targetWidthRem: 45,
     outerPaddingPx: 16,
-    majorGapPx: 16,
+    majorGapPx: 20,
     minorGapPx: 8,
+    surfacePaddingPx: 14,
     controlHeightPx: 36,
   },
   3: {
     scale: 1.2,
     targetWidthRem: 56,
     outerPaddingPx: 20,
-    majorGapPx: 20,
+    majorGapPx: 24,
     minorGapPx: 10,
+    surfacePaddingPx: 17,
     controlHeightPx: 43,
   },
 };
@@ -3511,7 +3513,6 @@ function PrinterCard({
   // this commit; later commits use this flag one section at a time.
   const isRedesignedCard = viewMode === 'expanded' && isPrinterCardRedesignSize(cardSize);
   const redesignScale = isPrinterCardRedesignSize(cardSize) ? PRINTER_CARD_REDESIGN_SCALE[cardSize] : null;
-  void redesignScale;
 
   const getImageSize = () => {
     switch (cardSize) {
@@ -5746,7 +5747,13 @@ function PrinterCard({
                   const canSkipObjects = isActivePrint && objectCount !== 1 && hasPermission('printers:control');
 
                   return (
-                    <div className={`relative overflow-hidden ${isRedesignedCard ? 'rounded-xl border border-bambu-dark-tertiary/70 bg-black/10 p-3' : 'p-2 bg-bambu-dark rounded-[10px]'}`}>
+                    <div
+                      className={`relative overflow-hidden ${isRedesignedCard ? 'rounded-xl border border-bambu-dark-tertiary/50 bg-black/10' : 'p-2 bg-bambu-dark rounded-[10px]'}`}
+                      style={isRedesignedCard && redesignScale ? {
+                        marginTop: `${redesignScale.majorGapPx}px`,
+                        padding: `${redesignScale.surfacePaddingPx}px`,
+                      } : undefined}
+                    >
                       <button
                         onClick={() => setShowSkipObjectsModal(true)}
                         disabled={!canSkipObjects}
@@ -5956,8 +5963,9 @@ function PrinterCard({
                   <div
                     data-testid="printer-telemetry-temperatures"
                     className={isRedesignedCard
-                      ? 'mt-4 flex items-stretch gap-0 flex-wrap rounded-t-xl border border-b-0 border-bambu-dark-tertiary/70 bg-black/10 px-1 py-1'
+                      ? 'flex items-stretch gap-0 flex-wrap rounded-t-xl border border-b-0 border-bambu-dark-tertiary/50 bg-black/10 px-1.5 py-1.5'
                       : 'mt-2 flex items-stretch gap-1.5 flex-wrap'}
+                    style={isRedesignedCard && redesignScale ? { marginTop: `${redesignScale.majorGapPx}px` } : undefined}
                   >
                     {/* Nozzle temp - combined for dual nozzle */}
                     <div
@@ -6177,7 +6185,7 @@ function PrinterCard({
                   <div
                     data-testid="printer-telemetry-fans"
                     className={isRedesignedCard
-                      ? 'mt-0 flex items-center gap-0 rounded-b-xl border border-bambu-dark-tertiary/70 bg-black/10 px-1 py-1'
+                      ? 'mt-0 flex items-center gap-0 rounded-b-xl border border-bambu-dark-tertiary/50 bg-black/10 px-1.5 py-1.5'
                       : 'mt-2 flex items-center gap-1.5'}
                   >
                     {fanItems.map(({ key, label, value, Icon, activeClass }) => {
@@ -6231,7 +6239,8 @@ function PrinterCard({
               return (
                 <div
                   data-testid="printer-controls-section"
-                  className={isRedesignedCard ? 'mt-4 border-t border-bambu-dark-tertiary/70 pt-3' : 'mt-3'}
+                  className={isRedesignedCard ? 'border-t border-bambu-dark-tertiary/40 pt-3' : 'mt-3'}
+                  style={isRedesignedCard && redesignScale ? { marginTop: `${redesignScale.majorGapPx}px` } : undefined}
                 >
                   {!isRedesignedCard && (
                     <div className="flex items-center gap-2 mb-2">

@@ -226,9 +226,9 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
   });
 
   it.each([
-    ['2', 'w-28', 'h-28'],
-    ['3', 'w-32', 'h-32'],
-  ])('emphasizes the current-job surface at redesigned size %s', async (cardSize, coverWidth, contentHeight) => {
+    ['2', 'w-28', 'h-28', '14px', '20px'],
+    ['3', 'w-32', 'h-32', '17px', '24px'],
+  ])('emphasizes the current-job surface at redesigned size %s', async (cardSize, coverWidth, contentHeight, surfacePadding, majorGap) => {
     server.use(
       http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
         ...STATUS,
@@ -250,9 +250,10 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     const surface = jobTitle.closest('div.relative.overflow-hidden');
     expect(surface).not.toBeNull();
     expect(surface!.className).toContain('rounded-xl');
-    expect(surface!.className).toContain('border-bambu-dark-tertiary/70');
+    expect(surface!.className).toContain('border-bambu-dark-tertiary/50');
     expect(surface!.className).toContain('bg-black/10');
-    expect(surface!.className).toContain('p-3');
+    expect(surface!.style.padding).toBe(surfacePadding);
+    expect(surface!.style.marginTop).toBe(majorGap);
 
     const coverWrapper = surface!.querySelector('img')?.parentElement;
     expect(coverWrapper).not.toBeNull();
@@ -289,22 +290,31 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect(surface!.className).not.toContain('bg-black/10');
   });
 
-  it.each(['2', '3'])('groups telemetry into one calm M/L surface at size %s', async (cardSize) => {
+  it.each([
+    ['2', '20px'],
+    ['3', '24px'],
+  ])('groups telemetry into one calm M/L surface at size %s', async (cardSize, majorGap) => {
     await cardStyleAt(cardSize);
 
     const temperatures = await screen.findByTestId('printer-telemetry-temperatures');
     const fans = await screen.findByTestId('printer-telemetry-fans');
 
-    expect(temperatures.className).toContain('mt-4');
+    expect(temperatures.style.marginTop).toBe(majorGap);
     expect(temperatures.className).toContain('gap-0');
     expect(temperatures.className).toContain('rounded-t-xl');
     expect(temperatures.className).toContain('border-b-0');
+    expect(temperatures.className).toContain('border-bambu-dark-tertiary/50');
     expect(temperatures.className).toContain('bg-black/10');
+    expect(temperatures.className).toContain('px-1.5');
+    expect(temperatures.className).toContain('py-1.5');
 
     expect(fans.className).toContain('mt-0');
     expect(fans.className).toContain('gap-0');
     expect(fans.className).toContain('rounded-b-xl');
+    expect(fans.className).toContain('border-bambu-dark-tertiary/50');
     expect(fans.className).toContain('bg-black/10');
+    expect(fans.className).toContain('px-1.5');
+    expect(fans.className).toContain('py-1.5');
 
     const firstTemperatureCell = temperatures.querySelector(':scope > div');
     expect(firstTemperatureCell).not.toBeNull();
@@ -335,7 +345,10 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect(firstTemperatureCell!.className).toContain('rounded-lg');
   });
 
-  it.each(['2', '3'])('uses progressive action hierarchy on redesigned size %s', async (cardSize) => {
+  it.each([
+    ['2', '20px'],
+    ['3', '24px'],
+  ])('uses progressive action hierarchy on redesigned size %s', async (cardSize, majorGap) => {
     await cardStyleAt(cardSize);
 
     const card = document.getElementById('printer-card-1');
@@ -348,8 +361,9 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     const actionsMenu = within(card!).getByTestId('printer-actions-menu');
     const footer = within(card!).getByTestId('printer-footer-actions');
 
-    expect(section.className).toContain('mt-4');
+    expect(section.style.marginTop).toBe(majorGap);
     expect(section.className).toContain('border-t');
+    expect(section.className).toContain('border-bambu-dark-tertiary/40');
     expect(section.className).toContain('pt-3');
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false');

@@ -109,9 +109,9 @@ Historical verified local deployment:
 
 The checkout directory name is stale. Source version is 1.2.5.6.
 
-The Ninja source checkout was explicitly synced by the user through functional HEAD `3789af8`.
+The Ninja source checkout was explicitly synced by the user through Step 9 HEAD `6961195e`.
 
-The live Docker runtime was rebuilt and visually validated against that checkout on September 27, 2026.
+The live Docker runtime was rebuilt from that checkout on September 27, 2026, `/health` was healthy, and Alex reviewed the live M/L P1S + AMS layout before requesting the final spacing polish.
 
 Verified runtime details:
 
@@ -334,8 +334,9 @@ M / card size 2:
 - scale: 1.0
 - target width: 45 rem
 - outer padding: 16 px
-- major gap: 16 px
+- major gap: 20 px
 - minor gap: 8 px
+- surface padding: 14 px
 - control height: 36 px
 
 L / card size 3:
@@ -343,8 +344,9 @@ L / card size 3:
 - scale: 1.2
 - target width: 56 rem
 - outer padding: 20 px
-- major gap: 20 px
+- major gap: 24 px
 - minor gap: 10 px
+- surface padding: 17 px
 - control height: 43 px
 
 Current source also contains:
@@ -362,15 +364,13 @@ The older `CARD_BODY_SCALE` remains for legacy body/icon scaling.
 
 ## Current redesign implementation
 
-Latest fully validated runtime checkpoint through Step 8:
+Latest pre-polish validation checkpoint:
 
-`3789af8b4515832125ba4ba239d58f7044a319df`
+`6961195e159c977c6aa0d5282433f8b62c8c020e`
 
-Branch HEAD immediately before this Step 9 implementation commit:
+At that Step 9 HEAD, GitHub CI/Security were green, Ninja was rebuilt and healthy, the full frontend suite passed, and Alex reviewed live M/L P1S + AMS cards.
 
-`a0850131eb4b7f98a6db6b5d05f555290b817521`
-
-This commit implements Step 9 only. The redesign remains intentionally incomplete until Step 10 full regression and manual validation.
+The commit containing this handoff adds only the final M/L spacing polish described below. The redesign remains open until this polish passes its own CI/Security checks and one final live M/L visual verification.
 
 ### Completed: design contract
 
@@ -569,7 +569,7 @@ Preserved unchanged:
 
 Focused regression coverage verifies the M/L progressive action hierarchy, popover toggle, header More-menu placement, and unchanged XL legacy hierarchy.
 
-### Completed in this commit: Step 9 M/L page-grid width bounds
+### Completed: Step 9 M/L page-grid width bounds
 
 Redesigned M/L page grids now stop growing once their existing maximum column layout reaches the approved target card widths.
 
@@ -584,6 +584,36 @@ Layout-only behavior:
 The cap is derived from `PRINTER_CARD_REDESIGN_SCALE` target widths so the target card width remains the source of truth.
 
 Focused regression coverage verifies the M/L grid bounds and confirms S/XL remain unbounded by this redesign helper.
+
+### Final M/L spacing polish after visual review
+
+After Step 9 was deployed on Ninja, Alex reviewed both L and M live P1S + AMS cards and approved the width/layout direction but found the body slightly too compressed.
+
+The final polish keeps widths and composition unchanged and changes M/L presentation only:
+
+- major section spacing increases to 20 px on M and 24 px on L
+- current-job surface padding becomes 14 px on M and 17 px on L
+- current-job and telemetry borders soften from 70% to 50% theme-border opacity
+- telemetry outer padding increases from 4 px to 6 px
+- the Controls divider softens to 40% opacity
+- typography, AMS slot geometry, current-job content, telemetry values, controls, and footer actions are unchanged
+- S/XL code paths remain unchanged
+
+Focused coverage asserts the new M/L spacing, padding, softer surface borders, telemetry padding, and Controls divider while retaining the existing XL legacy assertions.
+
+## Step 10 validation status before this polish commit
+
+Verified on Ninja against Step 9 HEAD `6961195e159c977c6aa0d5282433f8b62c8c020e`:
+
+- Docker image rebuild succeeded
+- container recreation succeeded
+- `http://127.0.0.1:8001/health` returned `{"status":"healthy"}`
+- full frontend regression suite passed: 258 test files / 3539 tests
+- i18n parity passed for every locale
+- Alex visually reviewed live L and M P1S + AMS cards
+- Alex explicitly chose not to spend additional manual time on S/XL screenshots; automated legacy-size regression coverage remains in place
+
+Because this polish changes presentation after that full-suite run, this commit still requires its own PR CI/Security checks and one final live M/L visual verification before Step 10 is closed.
 
 ## GitHub CI
 
@@ -789,34 +819,23 @@ Do not mix these into the printer-card redesign unless a real regression appears
 
 ## Remaining printer-card redesign backlog
 
-Follow the design contract in order.
+Only final validation of the M/L spacing polish remains.
 
-Next remaining step:
-
-10. Run full regression validation and manual P1S + AMS testing.
-
-Do not start Step 10 until the Step 9 PR CI is green.
-
-S and XL remain unchanged during this phase.
+The pre-polish Step 10 full suite and live M/L review already passed. Do not add more redesign work unless the new polish exposes a real regression.
 
 ## Exact next development task
 
-**Step 10 only: full regression validation and manual P1S + AMS testing.**
+**Validate this final M/L spacing polish only.**
 
-First verify the Step 9 commit's GitHub PR CI and Security Audit are green.
+1. Verify this commit's Alex Custom PR CI and Security Audit are green.
+2. Rebuild/recreate the customized Ninja Docker runtime from the feature branch.
+3. Confirm `/health` is healthy.
+4. Visually verify the live M and L P1S + AMS cards have better breathing room without changing width, composition, typography, AMS behavior, telemetry content, or controls.
+5. If that passes, close Step 10 and decide separately whether to merge/version/tag/release.
 
-Then run the project's full frontend regression suite and the final manual P1S + AMS validation against the current feature branch.
+Alex explicitly opted to skip additional manual S/XL screenshots. Preserve the existing automated legacy-size regression coverage and do not alter S/XL code paths.
 
-Step 10 constraints:
-
-- do not redesign or refactor further unless validation exposes a real regression
-- preserve the approved M/L composition and Steps 5-9 styling
-- verify S and XL remain unchanged
-- verify printer controls, AMS interactions, inventory integration, permissions, MQTT-derived state, Spoolman behavior, and F-code behavior still work
-- keep deployment verification grounded in the actual customized Ninja Compose/runtime state
-- update this handoff with final validation results and any real regression fixes
-
-Do not merge, version-bump, tag, or release until Step 10 is complete.
+Do not merge, version-bump, tag, or release until this final polish validation is complete.
 
 ## Local Ninja command when visual testing is actually needed
 
@@ -879,4 +898,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-Continue from the exact active task only: Step 10, first verify Step 9 CI is green, then run full regression validation and manual P1S + AMS testing without further redesign unless a real regression appears. Preserve the approved composition and Steps 5-9 styling, keep S/XL unchanged, update this handoff with final validation results, and do not merge/version/tag/release before Step 10 is complete.
+Continue from the exact active task only: validate the final M/L spacing-polish commit. Verify its PR CI and Security Audit, rebuild the customized Ninja Docker runtime, confirm health, and do one final live M/L P1S + AMS visual check. The pre-polish full suite already passed 258 files / 3539 tests plus i18n parity. Alex explicitly skipped additional manual S/XL screenshots, so preserve the existing automated legacy-size coverage and do not alter S/XL. Do not merge/version/tag/release until the final polish validation passes.
