@@ -173,7 +173,7 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
   it('labels AMS humidity explicitly on the redesigned M card', async () => {
     await cardStyleAt('2');
 
-    expect(screen.getAllByText('Humidity').length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Humidity')).length).toBeGreaterThan(0);
   });
 
   it('leaves S at the same sizes — the dense fleet view wants density', async () => {
