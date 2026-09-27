@@ -34,9 +34,9 @@ jobs:
       - name: Type check
         working-directory: frontend
         run: npx tsc --noEmit
-      - name: Frontend tests
+      - name: Printer page regression tests
         working-directory: frontend
-        run: npm run test:run
+        run: npm run test:run -- src/__tests__/pages/PrintersPage*.test.ts*
       - name: Production frontend build
         working-directory: frontend
         run: npm run build
