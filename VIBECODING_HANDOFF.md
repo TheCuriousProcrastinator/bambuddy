@@ -77,23 +77,39 @@ Do not casually merge/rebase `main` into `alex-custom`.
 
 ## Current application version and release state
 
-Verified from current source:
+Current release version:
 
 - `backend/app/core/config.py`
-- `APP_VERSION = "1.2.5.6"`
+- `APP_VERSION = "1.2.5.7"`
 
-Verified release/tag state:
+Release marker:
 
-- tag `v1.2.5.6`
-- tag commit: `e548ba65e18743ac2fd27f98a53c1d16efbf75fa`
-- GitHub Releases collection: empty
-- this fork currently uses tags rather than GitHub Release objects
+- release tag: `v1.2.5.7`
+- tag style: lightweight Git tag, matching the existing `v1.2.5.x` convention
+- the tag must point to the commit that contains this version bump and this handoff update
+- previous release tag: `v1.2.5.6` at `e548ba65e18743ac2fd27f98a53c1d16efbf75fa`
+- GitHub Releases collection remains intentionally empty; this fork uses Git tags rather than GitHub Release objects
 
-`alex-custom` contains unreleased custom commits after the `v1.2.5.6` tag.
+Release contents since `v1.2.5.6`:
 
-No new application version was assigned as part of the printer-card redesign.
+- completed and validated M/L printer-card redesign
+- PR #2 merged into `alex-custom`
+- bounded M/L card widths
+- calmer header, AMS, current-job, telemetry, and action hierarchy
+- final M/L spacing polish
+- focused PR CI workflow and regression coverage
+- current `VIBECODING_HANDOFF.md`
 
-The redesign has now passed automated and manual validation and is merged into `alex-custom`. Version bump, tag, or release remain separate actions and should happen only when explicitly requested.
+Validation before release:
+
+- full frontend milestone suite: 258 test files / 3539 tests passed
+- i18n parity passed
+- final focused printer-card CI passed
+- Security Audit passed
+- Ninja Docker rebuild and runtime health passed
+- final live M P1S + AMS visual review passed
+
+No GitHub Release object or packaged binary is created for this fork release unless explicitly requested.
 
 ## Runtime and deployment
 
@@ -109,7 +125,7 @@ Historical verified local deployment:
 - local UI/API:
   `http://127.0.0.1:8001/`
 
-The checkout directory name is stale. Source version is 1.2.5.6.
+The checkout directory name is stale. Source version is 1.2.5.7.
 
 The Ninja source checkout was explicitly synced by the user through final feature HEAD `746c37d8`.
 
@@ -839,7 +855,9 @@ There is no active redesign implementation task.
 
 PR #2 has been merged into `alex-custom` at merge commit `a645ca6b78a1190e2a9e26dc1ebc14a2ad2fe6c1`.
 
-The printer-card redesign project is finished. Version bump, tag, release, branch deletion, or a new development task are separate actions and must not be performed unless explicitly requested.
+The printer-card redesign project is finished and is the basis of release `v1.2.5.7`.
+
+After the lightweight `v1.2.5.7` tag is verified on the release commit, there is no active development task. Branch deletion or a new development task are separate actions and must not be performed unless explicitly requested.
 
 Deferred custom-fork validation items listed above remain separate backlog.
 
@@ -904,4 +922,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-The approved M/L printer-card redesign is complete, validated, and merged into `alex-custom` through PR #2. Final app code is `ea9d13ae`; merge commit is `a645ca6b`. There is no active development task. Start future custom work from the current `alex-custom` unless the user explicitly chooses another base. Do not version-bump, tag, release, delete branches, or continue redesign work unless explicitly requested. Preserve the existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, MQTT-derived behavior, and the validated M/L composition.
+The approved M/L printer-card redesign is complete, validated, merged into `alex-custom`, and released as version `1.2.5.7` using lightweight tag `v1.2.5.7`. Final app-code commit is `ea9d13ae`; PR merge commit is `a645ca6b`. Verify the current `alex-custom` HEAD and the `v1.2.5.7` tag before new work. There is no active development task. Start future custom work from current `alex-custom` unless the user explicitly chooses another base. Do not delete branches or continue redesign work unless explicitly requested. Preserve the existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, MQTT-derived behavior, and the validated M/L composition.
