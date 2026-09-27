@@ -3699,7 +3699,7 @@ function PrinterCard({
         <MoreVertical className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
       </Button>
       {showMenu && (
-        <div className="absolute left-0 bottom-full mb-2 w-48 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg z-20">
+        <div className={`absolute w-48 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-lg shadow-lg z-30 ${isRedesignedCard ? 'right-0 top-full mt-2' : 'left-0 bottom-full mb-2'}`}>
           <button
             className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
               hasPermission('printers:update')
@@ -3966,6 +3966,7 @@ function PrinterCard({
                     {status?.connected ? t('printers.connection.connected') : t('printers.connection.offline')}
                   </span>
                 )}
+                {printerActionsMenu}
               </div>
             )}
           </div>
@@ -6717,7 +6718,7 @@ function PrinterCard({
         <div className="pt-4">
             <div className="mb-3 h-[2px] bg-bambu-dark-tertiary" />
             <div className="flex items-center justify-between gap-2">
-              {printerActionsMenu}
+              {!isRedesignedCard && printerActionsMenu}
               <div className="flex items-center justify-end gap-2 flex-wrap">
                 {/* Camera split button: the icon opens whichever view was used
                     last, the caret picks between the two and remembers it.
