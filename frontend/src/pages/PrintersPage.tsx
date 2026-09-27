@@ -4115,7 +4115,6 @@ function PrinterCard({
                   "Idle" outside a monitored print, class-colored during one. */}
               {aiDetectionEnabled && (() => {
                 const cls = aiDetectionClass(aiDetection);
-                if (isRedesignedCard && !['failure', 'warning', 'error'].includes(cls)) return null;
                 const colorClass =
                   cls === 'failure'
                     ? 'bg-status-error/20 text-status-error'
@@ -4189,7 +4188,7 @@ function PrinterCard({
                 </button>
               )}
               {/* Firmware Version Badge */}
-              {checkPrinterFirmware && firmwareInfo?.current_version && firmwareInfo?.latest_version && (!isRedesignedCard || firmwareInfo.update_available) ? (
+              {checkPrinterFirmware && firmwareInfo?.current_version && firmwareInfo?.latest_version ? (
                 <button
                   onClick={() => setShowFirmwareModal(true)}
                   className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs hover:opacity-80 transition-opacity ${
@@ -4206,7 +4205,7 @@ function PrinterCard({
                   {firmwareInfo.update_available ? <Download className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" /> : <CheckCircle className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" />}
                   {firmwareInfo.current_version}
                 </button>
-              ) : !isRedesignedCard && status?.firmware_version ? (
+              ) : status?.firmware_version ? (
                 <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-bambu-dark-tertiary/50 text-bambu-gray">
                   {status.firmware_version}
                 </span>

@@ -152,7 +152,6 @@ describe('PrintersPage', () => {
     });
 
     it('uses a quiet connection summary and hides healthy diagnostic noise at M', async () => {
-      localStorage.setItem('printerCardSize', '2');
       render(<PrintersPage />);
 
       const summary = await screen.findByTestId('printer-connection-summary-1');
@@ -161,17 +160,7 @@ describe('PrintersPage', () => {
       const card = document.getElementById('printer-card-1');
       expect(card).not.toBeNull();
       expect(within(card!).queryByText('-50dBm')).not.toBeInTheDocument();
-      expect(within(card!).queryByRole('button', { name: 'OK' })).not.toBeInTheDocument();
-    });
-
-    it('keeps the legacy expanded health badges at XL', async () => {
-      localStorage.setItem('printerCardSize', '4');
-      render(<PrintersPage />);
-
-      await waitFor(() => {
-        expect(screen.getAllByText('-50dBm').length).toBeGreaterThan(0);
-      });
-      expect(screen.queryByTestId('printer-connection-summary-1')).not.toBeInTheDocument();
+      expect(within(card!).queryByTitle('Click to view HMS errors')).not.toBeInTheDocument();
     });
 
     it('offers FTP file browsing when MQTT status is offline', async () => {
@@ -987,8 +976,7 @@ describe('PrintersPage', () => {
       release_notes: 'New features added.',
     };
 
-    it('shows green badge when firmware is up to date on the legacy XL card', async () => {
-      localStorage.setItem('printerCardSize', '4');
+    it('shows green badge when firmware is up to date', async () => {
       server.use(
         http.get('/api/v1/firmware/updates/:id', () => {
           return HttpResponse.json(firmwareUpToDate);
@@ -1011,30 +999,6 @@ describe('PrintersPage', () => {
       const badge = screen.getAllByText('01.09.00.00')[0].closest('button');
       expect(badge).toBeInTheDocument();
       expect(badge?.className).toContain('text-status-ok');
-    });
-
-    it('hides up-to-date firmware on the redesigned M header', async () => {
-      let firmwareRequested = false;
-      server.use(
-        http.get('/api/v1/firmware/updates/:id', () => {
-          firmwareRequested = true;
-          return HttpResponse.json(firmwareUpToDate);
-        }),
-        http.get('/api/v1/settings/', () => {
-          return HttpResponse.json({
-            check_printer_firmware: true,
-            auto_archive: true,
-            save_thumbnails: true,
-          });
-        })
-      );
-
-      render(<PrintersPage />);
-
-      await waitFor(() => {
-        expect(firmwareRequested).toBe(true);
-      });
-      expect(screen.queryByText('01.09.00.00')).not.toBeInTheDocument();
     });
 
     it('shows orange badge when firmware update is available', async () => {
