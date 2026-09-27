@@ -2240,6 +2240,7 @@ function PrinterCard({
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState<number | null>(null);
+  const [showQuickControls, setShowQuickControls] = useState(false);
   const [showAirductMenu, setShowAirductMenu] = useState<number | null>(null);
   const [showBedJogMenu, setShowBedJogMenu] = useState<number | null>(null);
   const [statusControlMenu, setStatusControlMenu] = useState<string | null>(null);
@@ -3737,7 +3738,7 @@ function PrinterCard({
   };
 
   const printerActionsMenu = (
-    <div ref={printerActionsMenuRef} className="relative flex-shrink-0">
+    <div ref={printerActionsMenuRef} data-testid="printer-actions-menu" className="relative flex-shrink-0">
       <Button
         variant="secondary"
         size="sm"
@@ -5284,20 +5285,23 @@ function PrinterCard({
               </div>
             </div>
             {isRedesignedCard && (
-              printer.is_active === false ? (
-                <span className="flex shrink-0 items-center gap-1.5 pt-1 text-[length:var(--pc-t11,11px)] font-medium text-status-warning">
-                  <Wrench className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" />
-                  {t('printers.maintenance.pillLabel')}
-                </span>
-              ) : status ? (
-                <span
-                  data-testid={`printer-connection-summary-${printer.id}`}
-                  className={`flex shrink-0 items-center gap-1.5 pt-1 text-[length:var(--pc-t11,11px)] font-medium ${status.connected ? 'text-bambu-gray' : 'text-status-error'}`}
-                >
-                  <span className={`h-[var(--pc-i2,0.5rem)] w-[var(--pc-i2,0.5rem)] rounded-full ${status.connected ? 'bg-status-ok' : 'bg-status-error'}`} />
-                  {status.connected ? t('printers.connection.connected') : t('printers.connection.offline')}
-                </span>
-              ) : null
+              <div data-testid="printer-header-status-actions" className="flex shrink-0 items-center gap-2 pt-1">
+                {printer.is_active === false ? (
+                  <span className="flex items-center gap-1.5 text-[length:var(--pc-t11,11px)] font-medium text-status-warning">
+                    <Wrench className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" />
+                    {t('printers.maintenance.pillLabel')}
+                  </span>
+                ) : status ? (
+                  <span
+                    data-testid={`printer-connection-summary-${printer.id}`}
+                    className={`flex items-center gap-1.5 text-[length:var(--pc-t11,11px)] font-medium ${status.connected ? 'text-bambu-gray' : 'text-status-error'}`}
+                  >
+                    <span className={`h-[var(--pc-i2,0.5rem)] w-[var(--pc-i2,0.5rem)] rounded-full ${status.connected ? 'bg-status-ok' : 'bg-status-error'}`} />
+                    {status.connected ? t('printers.connection.connected') : t('printers.connection.offline')}
+                  </span>
+                ) : null}
+                {printerActionsMenu}
+              </div>
             )}
           </div>
 
@@ -6213,18 +6217,52 @@ function PrinterCard({
               const printControlClass = 'flex h-8 w-20 items-center justify-center gap-1 px-2 rounded-lg text-xs font-medium transition-colors';
 
               return (
-                <div className="mt-3">
-                  {/* Section Header */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[length:var(--pc-t10,10px)] uppercase tracking-wider text-bambu-gray font-medium">
-                      {t('printers.controls')}
-                    </span>
-                    <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
-                  </div>
+                <div
+                  data-testid="printer-controls-section"
+                  className={isRedesignedCard ? 'mt-4 border-t border-bambu-dark-tertiary/70 pt-3' : 'mt-3'}
+                >
+                  {!isRedesignedCard && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[length:var(--pc-t10,10px)] uppercase tracking-wider text-bambu-gray font-medium">
+                        {t('printers.controls')}
+                      </span>
+                      <div className="flex-1 h-[2px] bg-bambu-dark-tertiary" />
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
-                    {/* Left: Secondary controls */}
-                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    {/* Left: Secondary controls. M/L keep these behind one
+                        deliberate entry point; the controls themselves are unchanged. */}
+                    <div className="relative flex min-w-0 items-center gap-2">
+                      {isRedesignedCard && (
+                        <>
+                          <button
+                            type="button"
+                            data-testid="printer-controls-trigger"
+                            onClick={() => setShowQuickControls((open) => !open)}
+                            className="flex h-8 items-center gap-2 rounded-lg bg-bambu-dark-tertiary px-3 text-xs font-medium text-white transition-colors hover:bg-bambu-gray-dark"
+                            aria-expanded={showQuickControls}
+                            title={t('printers.controls')}
+                          >
+                            <SlidersHorizontal className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
+                            {t('printers.controls')}
+                          </button>
+                          {showQuickControls && (
+                            <button
+                              type="button"
+                              aria-label={t('common.close')}
+                              className="fixed inset-0 z-40 cursor-default"
+                              onClick={() => setShowQuickControls(false)}
+                            />
+                          )}
+                        </>
+                      )}
+                      <div
+                        data-testid="printer-secondary-controls"
+                        className={isRedesignedCard
+                          ? `${showQuickControls ? 'flex' : 'hidden'} absolute bottom-full left-0 z-50 mb-2 w-[min(24rem,calc(100vw-2rem))] flex-wrap items-center gap-2 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-2.5 shadow-2xl`
+                          : 'flex flex-wrap items-center gap-2 min-w-0'}
+                      >
                       <button
                         onClick={() => chamberLightMutation.mutate(!status.chamber_light)}
                         disabled={!status.connected || chamberLightMutation.isPending || !hasPermission('printers:control')}
@@ -6540,6 +6578,7 @@ function PrinterCard({
                         </div>
                       ))()}
 
+                      </div>
                     </div>
 
                     {/* Right: Print Control Buttons */}
@@ -6717,8 +6756,8 @@ function PrinterCard({
         {/* Connection Info & Actions */}
         <div className="pt-4">
             <div className="mb-3 h-[2px] bg-bambu-dark-tertiary" />
-            <div className="flex items-center justify-between gap-2">
-              {printerActionsMenu}
+            <div data-testid="printer-footer-actions" className="flex items-center justify-between gap-2">
+              {!isRedesignedCard && printerActionsMenu}
               <div className="flex items-center justify-end gap-2 flex-wrap">
                 {/* Camera split button: the icon opens whichever view was used
                     last, the caret picks between the two and remembers it.

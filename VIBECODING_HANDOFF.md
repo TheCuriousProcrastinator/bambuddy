@@ -42,17 +42,17 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - PR base: `alex-custom`
 - PR head: `feature/printer-card-redesign-v2`
 
-Verified immediately before the Step 7 implementation commit:
+Verified immediately before the Step 8 implementation commit:
 
 - `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
 - `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
-- feature HEAD: `1ce7a565b5bf9877857c75d63c3b5b5461df29ec`
-- feature branch: 18 commits ahead and 0 behind `alex-custom`
+- feature HEAD: `47a9ca2baad9e2272f6cee55e9b0a0d64e8fdfa9`
+- feature branch: 19 commits ahead and 0 behind `alex-custom`
 - PR #2: open, draft, mergeable
-- Alex Custom PR CI for `1ce7a56`: success
-- Security Audit for `1ce7a56`: success
+- Alex Custom PR CI for `47a9ca2`: success
+- Security Audit for `47a9ca2`: success
 
-The Step 7 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
+The Step 8 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
 
 ### Important branch rule
 
@@ -506,6 +506,28 @@ Preserved unchanged:
 
 Focused regression coverage verifies M/L grouped telemetry styling and unchanged XL legacy grouping.
 
+### Completed: Step 8 M/L action/footer hierarchy
+
+Redesigned M/L cards now keep primary print actions visible while placing secondary printer controls behind one deliberate Controls entry point.
+
+M/L-only hierarchy changes:
+
+- the legacy CONTROLS label/divider is replaced by a quieter top border before the action row
+- pause/resume and stop remain visible as primary print actions
+- chamber light, movement, plate detection, speed, airduct, and other existing secondary controls remain unchanged but live inside a Controls popover
+- the existing More printer-actions menu moves beside the M/L header connection summary
+- the footer retains camera/files/upload actions but no longer duplicates the More menu
+
+Preserved unchanged:
+
+- every existing control and mutation
+- all permissions and disabled states
+- confirmation dialogs and popovers
+- S and XL legacy control/footer hierarchy
+- Step 7 telemetry grouping
+
+Focused regression coverage verifies the M/L progressive action hierarchy, popover toggle, header More-menu placement, and unchanged XL legacy hierarchy.
+
 ## GitHub CI
 
 Active PR workflow:
@@ -523,9 +545,9 @@ npm run check:i18n
 npm run build
 ```
 
-### Latest validated HEAD before Step 7
+### Latest validated HEAD before Step 8
 
-For `1ce7a565b5bf9877857c75d63c3b5b5461df29ec`:
+For `47a9ca2baad9e2272f6cee55e9b0a0d64e8fdfa9`:
 
 - Alex Custom PR CI: success
 - Frontend validation: success
@@ -707,7 +729,6 @@ Follow the design contract in order.
 
 Next remaining steps:
 
-8. Restyle action/footer hierarchy only.
 9. Bound M/L widths in the page grid so a lone card does not stretch across an ultrawide display.
 10. Run full regression validation and manual P1S + AMS testing.
 
@@ -717,23 +738,21 @@ S and XL remain unchanged during this phase.
 
 ## Exact next development task
 
-**Step 8 only: restyle the action/footer hierarchy for redesigned M/L cards.**
+**Step 9 only: bound redesigned M/L card widths in the page grid.**
 
-Before editing, inspect the current expanded controls/footer markup and `docs/printer-card-redesign.md`.
+Before editing, inspect the current printers grid/card-width logic and `docs/printer-card-redesign.md`.
 
 Implementation constraints:
 
 - M/L only
 - S and XL remain unchanged
-- preserve the approved header -> AMS -> current job -> telemetry -> actions order
-- preserve the Step 5 divider cleanup, Step 6 current-job surface, and Step 7 telemetry grouping
-- do not move printer data sections
-- do not change printer controls, mutations, or permissions
-- do not change telemetry behavior
-- do not change Spoolman or F-code behavior
-- keep the change visual and small
+- preserve the approved M/L composition and Steps 5-8 styling
+- prevent a lone M/L card from stretching across an ultrawide display
+- do not change card information or controls
+- do not change printer mutations, telemetry behavior, permissions, Spoolman, or F-code behavior
+- keep the change layout-only and small
 
-Add or adjust focused regression coverage for the redesigned M/L action/footer hierarchy.
+Add or adjust focused regression coverage for the redesigned M/L width bound.
 
 Make this one small code change.
 
@@ -741,9 +760,9 @@ Update this handoff in the same meaningful commit.
 
 Then let GitHub PR CI finish.
 
-Do not continue to Step 9 until CI is green.
+Do not continue to Step 10 until CI is green.
 
-No Ninja action is required for this code-only step unless GitHub/source inspection cannot answer the issue.
+Ninja visual testing may be useful after this layout step, but do not guess deployment commands; verify the customized Compose/runtime state first.
 
 ## Local Ninja command when visual testing is actually needed
 
@@ -797,4 +816,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-Continue from the exact active task only: Step 8, restyle the action/footer hierarchy for redesigned M/L cards while keeping S/XL unchanged, preserve the approved section order plus the Step 5 divider cleanup, Step 6 current-job surface, and Step 7 telemetry grouping, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
+Continue from the exact active task only: Step 9, bound redesigned M/L card widths in the page grid while keeping S/XL unchanged, preserve the approved composition and Steps 5-8 styling, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.

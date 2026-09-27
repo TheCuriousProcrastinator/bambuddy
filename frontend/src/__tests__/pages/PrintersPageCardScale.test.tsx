@@ -10,7 +10,7 @@
  * until the user reaches for a size that is already asking for more space.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { render } from '../utils';
 import { PrintersPage } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
@@ -333,6 +333,60 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect(firstTemperatureCell).not.toBeNull();
     expect(firstTemperatureCell!.className).toContain('bg-bambu-dark');
     expect(firstTemperatureCell!.className).toContain('rounded-lg');
+  });
+
+  it.each(['2', '3'])('uses progressive action hierarchy on redesigned size %s', async (cardSize) => {
+    await cardStyleAt(cardSize);
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const section = within(card!).getByTestId('printer-controls-section');
+    const trigger = within(card!).getByTestId('printer-controls-trigger');
+    const secondary = within(card!).getByTestId('printer-secondary-controls');
+    const headerActions = within(card!).getByTestId('printer-header-status-actions');
+    const actionsMenu = within(card!).getByTestId('printer-actions-menu');
+    const footer = within(card!).getByTestId('printer-footer-actions');
+
+    expect(section.className).toContain('mt-4');
+    expect(section.className).toContain('border-t');
+    expect(section.className).toContain('pt-3');
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(secondary.className).toContain('hidden');
+    expect(secondary.className).toContain('absolute');
+
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(secondary.className).toContain('flex');
+    expect(secondary.className).not.toContain('hidden');
+
+    expect(headerActions).toContainElement(actionsMenu);
+    expect(footer).not.toContainElement(actionsMenu);
+  });
+
+  it('keeps legacy action hierarchy on XL', async () => {
+    await cardStyleAt('4');
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const section = within(card!).getByTestId('printer-controls-section');
+    const secondary = within(card!).getByTestId('printer-secondary-controls');
+    const actionsMenu = within(card!).getByTestId('printer-actions-menu');
+    const footer = within(card!).getByTestId('printer-footer-actions');
+
+    expect(within(card!).queryByTestId('printer-controls-trigger')).not.toBeInTheDocument();
+    expect(within(card!).queryByTestId('printer-header-status-actions')).not.toBeInTheDocument();
+
+    expect(section.className).toContain('mt-3');
+    expect(section.className).not.toContain('border-t');
+
+    expect(secondary.className).toContain('flex');
+    expect(secondary.className).not.toContain('absolute');
+
+    expect(footer).toContainElement(actionsMenu);
   });
 
   it('leaves S at the same sizes — the dense fleet view wants density', async () => {
