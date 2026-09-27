@@ -151,6 +151,35 @@ describe('PrintersPage', () => {
       });
     });
 
+    it('labels AMS humidity explicitly on the redesigned M card', async () => {
+      localStorage.setItem('printerCardSize', '2');
+      server.use(
+        http.get('/api/v1/printers/:id/status', () => {
+          return HttpResponse.json({
+            ...mockPrinterStatus,
+            ams: [{
+              id: 0,
+              humidity: 17,
+              temp: 30.8,
+              tray: [
+                { id: 0, tray_type: 'PETG', remain: 75 },
+                { id: 1, tray_type: '', remain: 0 },
+                { id: 2, tray_type: 'PLA', remain: 25 },
+                { id: 3, tray_type: '', remain: 0 },
+              ],
+            }],
+          });
+        }),
+      );
+
+      render(<PrintersPage />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Humidity').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('17%').length).toBeGreaterThan(0);
+      });
+    });
+
     it('offers FTP file browsing when MQTT status is offline', async () => {
       server.use(
         http.get('/api/v1/printers/:id/status', () => {
@@ -964,7 +993,7 @@ describe('PrintersPage', () => {
       release_notes: 'New features added.',
     };
 
-    it('shows green badge when firmware is up to date', async () => {
+    it('keeps up-to-date firmware out of the redesigned M/L status row', async () => {
       server.use(
         http.get('/api/v1/firmware/updates/:id', () => {
           return HttpResponse.json(firmwareUpToDate);
@@ -981,12 +1010,10 @@ describe('PrintersPage', () => {
       render(<PrintersPage />);
 
       await waitFor(() => {
-        expect(screen.getAllByText('01.09.00.00').length).toBeGreaterThan(0);
+        expect(screen.getByText('X1 Carbon')).toBeInTheDocument();
       });
 
-      const badge = screen.getAllByText('01.09.00.00')[0].closest('button');
-      expect(badge).toBeInTheDocument();
-      expect(badge?.className).toContain('text-status-ok');
+      expect(screen.queryByText('01.09.00.00')).not.toBeInTheDocument();
     });
 
     it('shows orange badge when firmware update is available', async () => {
