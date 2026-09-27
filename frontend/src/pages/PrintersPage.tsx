@@ -3975,8 +3975,32 @@ function PrinterCard({
             const maintenanceCount = (maintenanceInfo?.due_count ?? 0) + (maintenanceInfo?.warning_count ?? 0);
             const showFirmwareUpdate = !!(checkPrinterFirmware && firmwareInfo?.update_available);
             const showDoorWarning = !!(status?.connected && status.door_open);
-            const showAiWarning = !!(aiDetectionEnabled && ['warning', 'failure', 'error'].includes(aiDetectionClass(aiDetection)));
-            if (knownErrors.length === 0 && maintenanceCount === 0 && !showFirmwareUpdate && !showDoorWarning && !showAiWarning) return null;
+            const aiClass = aiDetectionClass(aiDetection);
+            const aiColorClass =
+              aiClass === 'failure'
+                ? 'bg-status-error/15 text-status-error hover:bg-status-error/20'
+                : aiClass === 'warning'
+                  ? 'bg-status-warning/15 text-status-warning hover:bg-status-warning/20'
+                  : aiClass === 'safe'
+                    ? 'bg-status-ok/15 text-status-ok hover:bg-status-ok/20'
+                    : aiClass === 'error'
+                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+                      : 'bg-bambu-dark-tertiary/70 text-bambu-gray hover:text-white';
+            const aiTitle =
+              aiClass === 'error'
+                ? t('printers.aiDetection.tooltipError', {
+                    reason: aiDetection?.error ?? t('printers.aiDetection.error'),
+                  })
+                : aiClass === 'unknown'
+                  ? t('printers.aiDetection.tooltipUnknown')
+                  : aiDetection
+                    ? t('printers.aiDetection.tooltip', {
+                        status: t(`printers.aiDetection.${aiClass}`),
+                        score: aiDetection.score.toFixed(3),
+                      })
+                    : t('printers.aiDetection.tooltipIdle');
+            const AiIcon = aiClass === 'error' ? EyeOff : ScanEye;
+            if (knownErrors.length === 0 && maintenanceCount === 0 && !showFirmwareUpdate && !showDoorWarning && !aiDetectionEnabled) return null;
             return (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {knownErrors.length > 0 && (
@@ -3997,7 +4021,8 @@ function PrinterCard({
                   <button type="button" onClick={() => setShowFirmwareModal(true)}
                     className="flex min-h-8 items-center gap-1.5 rounded-lg bg-orange-500/15 px-2.5 text-xs font-medium text-orange-600 dark:text-orange-400 hover:bg-orange-500/20">
                     <Download className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" />
-                    {t('nav.update', 'Update')}
+                    <span>{firmwareInfo?.current_version}</span>
+                    <span className="text-current/70">{t('nav.update', 'Update')}</span>
                   </button>
                 )}
                 {showDoorWarning && (
@@ -4006,11 +4031,15 @@ function PrinterCard({
                     {t('printers.door.open')}
                   </span>
                 )}
-                {showAiWarning && (
-                  <button type="button" onClick={() => setShowAiModal(true)}
-                    className="flex min-h-8 items-center gap-1.5 rounded-lg bg-status-warning/15 px-2.5 text-xs font-medium text-status-warning hover:bg-status-warning/20">
-                    <ScanEye className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" />
-                    {t(`printers.aiDetection.${aiDetectionClass(aiDetection)}`)}
+                {aiDetectionEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAiModal(true)}
+                    className={`flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors ${aiColorClass}`}
+                    title={aiTitle}
+                  >
+                    <AiIcon className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" />
+                    {t(`printers.aiDetection.${aiClass}`)}
                   </button>
                 )}
               </div>
@@ -4461,7 +4490,7 @@ function PrinterCard({
                                 <div className="flex shrink-0 items-center gap-1.5">
                                   {ams.humidity != null && (
                                     <div className="flex items-center gap-1">
-                                      {isRedesignedCard && <span className="text-[length:var(--pc-t10,10px)] text-bambu-gray">Humidity</span>}
+                                      {isRedesignedCard && <span className="text-[length:var(--pc-t10,10px)] text-bambu-gray">{t('settings.humidity')}</span>}
                                       <HumidityIndicator
                                       humidity={ams.humidity}
                                       goodThreshold={amsThresholds?.humidityGood}
