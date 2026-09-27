@@ -389,6 +389,31 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect(footer).toContainElement(actionsMenu);
   });
 
+  it.each([
+    ['2', '137rem'],
+    ['3', '113.5rem'],
+  ])('bounds the redesigned size %s page grid to its target card width', async (cardSize, maxWidth) => {
+    await cardStyleAt(cardSize);
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const grid = card!.parentElement as HTMLElement | null;
+    expect(grid).not.toBeNull();
+    expect(grid!.style.maxWidth).toBe(maxWidth);
+  });
+
+  it.each(['1', '4'])('keeps legacy size %s page grid width behavior', async (cardSize) => {
+    await cardStyleAt(cardSize);
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const grid = card!.parentElement as HTMLElement | null;
+    expect(grid).not.toBeNull();
+    expect(grid!.style.maxWidth).toBe('');
+  });
+
   it('leaves S at the same sizes — the dense fleet view wants density', async () => {
     const style = await cardStyleAt('1');
 

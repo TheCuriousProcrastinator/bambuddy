@@ -362,11 +362,15 @@ The older `CARD_BODY_SCALE` remains for legacy body/icon scaling.
 
 ## Current redesign implementation
 
-Functional HEAD before this handoff commit:
+Latest fully validated runtime checkpoint through Step 8:
 
-`6c4a97e6388daffcd6b578523fa7dea44743c92f`
+`3789af8b4515832125ba4ba239d58f7044a319df`
 
-The redesign is intentionally incomplete.
+Branch HEAD immediately before this Step 9 implementation commit:
+
+`a0850131eb4b7f98a6db6b5d05f555290b817521`
+
+This commit implements Step 9 only. The redesign remains intentionally incomplete until Step 10 full regression and manual validation.
 
 ### Completed: design contract
 
@@ -564,6 +568,22 @@ Preserved unchanged:
 - Step 7 telemetry grouping
 
 Focused regression coverage verifies the M/L progressive action hierarchy, popover toggle, header More-menu placement, and unchanged XL legacy hierarchy.
+
+### Completed in this commit: Step 9 M/L page-grid width bounds
+
+Redesigned M/L page grids now stop growing once their existing maximum column layout reaches the approved target card widths.
+
+Layout-only behavior:
+
+- M keeps its existing 1/2/3-column breakpoints and caps the full grid at 137rem, equal to three 45rem target-width cards plus two existing 1rem gaps
+- L keeps its existing 1/2-column breakpoints and caps the full grid at 113.5rem, equal to two 56rem target-width cards plus the existing 1.5rem gap
+- the same bound applies to regular and grouped printer grids
+- S and XL receive no grid max-width and retain legacy width behavior
+- card information, controls, printer mutations, telemetry, permissions, Spoolman, AMS behavior, and F-code behavior are unchanged
+
+The cap is derived from `PRINTER_CARD_REDESIGN_SCALE` target widths so the target card width remains the source of truth.
+
+Focused regression coverage verifies the M/L grid bounds and confirms S/XL remain unbounded by this redesign helper.
 
 ## GitHub CI
 
@@ -771,42 +791,32 @@ Do not mix these into the printer-card redesign unless a real regression appears
 
 Follow the design contract in order.
 
-Next remaining steps:
+Next remaining step:
 
-9. Bound M/L widths in the page grid so a lone card does not stretch across an ultrawide display.
 10. Run full regression validation and manual P1S + AMS testing.
 
-Do not jump ahead.
+Do not start Step 10 until the Step 9 PR CI is green.
 
 S and XL remain unchanged during this phase.
 
 ## Exact next development task
 
-**Step 9 only: bound redesigned M/L card widths in the page grid.**
+**Step 10 only: full regression validation and manual P1S + AMS testing.**
 
-Before editing, inspect the current printers grid/card-width logic and `docs/printer-card-redesign.md`.
+First verify the Step 9 commit's GitHub PR CI and Security Audit are green.
 
-Implementation constraints:
+Then run the project's full frontend regression suite and the final manual P1S + AMS validation against the current feature branch.
 
-- M/L only
-- S and XL remain unchanged
-- preserve the approved M/L composition and Steps 5-8 styling
-- prevent a lone M/L card from stretching across an ultrawide display
-- do not change card information or controls
-- do not change printer mutations, telemetry behavior, permissions, Spoolman, or F-code behavior
-- keep the change layout-only and small
+Step 10 constraints:
 
-Add or adjust focused regression coverage for the redesigned M/L width bound.
+- do not redesign or refactor further unless validation exposes a real regression
+- preserve the approved M/L composition and Steps 5-9 styling
+- verify S and XL remain unchanged
+- verify printer controls, AMS interactions, inventory integration, permissions, MQTT-derived state, Spoolman behavior, and F-code behavior still work
+- keep deployment verification grounded in the actual customized Ninja Compose/runtime state
+- update this handoff with final validation results and any real regression fixes
 
-Make this one small code change.
-
-Update this handoff in the same meaningful commit.
-
-Then let GitHub PR CI finish.
-
-Do not continue to Step 10 until CI is green.
-
-Ninja visual testing may be useful after this layout step, but do not guess deployment commands; verify the customized Compose/runtime state first.
+Do not merge, version-bump, tag, or release until Step 10 is complete.
 
 ## Local Ninja command when visual testing is actually needed
 
@@ -869,4 +879,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-Continue from the exact active task only: Step 9, bound redesigned M/L card widths in the page grid while keeping S/XL unchanged, preserve the approved composition and Steps 5-8 styling, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
+Continue from the exact active task only: Step 10, first verify Step 9 CI is green, then run full regression validation and manual P1S + AMS testing without further redesign unless a real regression appears. Preserve the approved composition and Steps 5-9 styling, keep S/XL unchanged, update this handoff with final validation results, and do not merge/version/tag/release before Step 10 is complete.

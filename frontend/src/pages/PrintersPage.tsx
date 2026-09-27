@@ -2034,6 +2034,18 @@ function isPrinterCardRedesignSize(cardSize: number): cardSize is 2 | 3 {
   return cardSize === 2 || cardSize === 3;
 }
 
+function buildPrinterGridStyle(cardSize: number): React.CSSProperties | undefined {
+  if (!isPrinterCardRedesignSize(cardSize)) return undefined;
+
+  const columnCount = cardSize === 2 ? 3 : 2;
+  const gapRem = cardSize === 2 ? 1 : 1.5;
+  const targetWidthRem = PRINTER_CARD_REDESIGN_SCALE[cardSize].targetWidthRem;
+
+  return {
+    maxWidth: `${targetWidthRem * columnCount + gapRem * (columnCount - 1)}rem`,
+  };
+}
+
 // The scaled sizes, handed to the card subtree as custom properties. Every
 // converted class names its old fixed value as the fallback, so anything that
 // renders outside a card root -- the portalled temperature popover -- keeps
@@ -9370,6 +9382,8 @@ export function PrintersPage() {
     }
   };
 
+  const printerGridStyle = buildPrinterGridStyle(cardSize);
+
   const cardSizeLabels = ['S', 'M', 'L', 'XL'];
 
   // Increment version counter whenever a printer status cache entry is updated so
@@ -10042,7 +10056,10 @@ export function PrintersPage() {
                   </h2>
                 }
               >
-                <div className={`grid gap-4 ${cardSize >= 3 ? 'gap-6' : ''} ${getGridClasses()}`}>
+                <div
+          className={`grid gap-4 ${cardSize >= 3 ? 'gap-6' : ''} ${getGridClasses()}`}
+          style={printerGridStyle}
+        >
                   {groupPrinters.map((printer) => (
                     <PrinterCard
                       key={printer.id}
@@ -10095,7 +10112,10 @@ export function PrintersPage() {
         </div>
       ) : (
         /* Regular grid view */
-        <div className={`grid gap-4 ${cardSize >= 3 ? 'gap-6' : ''} ${getGridClasses()}`}>
+        <div
+                  className={`grid gap-4 ${cardSize >= 3 ? 'gap-6' : ''} ${getGridClasses()}`}
+                  style={printerGridStyle}
+                >
           {sortedPrinters.map((printer) => (
             <PrinterCard
               key={printer.id}
