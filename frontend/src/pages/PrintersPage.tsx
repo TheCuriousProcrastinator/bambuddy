@@ -3492,7 +3492,6 @@ function PrinterCard({
   // this commit; later commits use this flag one section at a time.
   const isRedesignedCard = viewMode === 'expanded' && isPrinterCardRedesignSize(cardSize);
   const redesignScale = isPrinterCardRedesignSize(cardSize) ? PRINTER_CARD_REDESIGN_SCALE[cardSize] : null;
-  void isRedesignedCard;
   void redesignScale;
 
   const getImageSize = () => {
@@ -3997,6 +3996,22 @@ function PrinterCard({
                 </p>
               </div>
             </div>
+            {isRedesignedCard && (
+              printer.is_active === false ? (
+                <span className="flex shrink-0 items-center gap-1.5 pt-1 text-[length:var(--pc-t11,11px)] font-medium text-status-warning">
+                  <Wrench className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" />
+                  {t('printers.maintenance.pillLabel')}
+                </span>
+              ) : status ? (
+                <span
+                  data-testid={`printer-connection-summary-${printer.id}`}
+                  className={`flex shrink-0 items-center gap-1.5 pt-1 text-[length:var(--pc-t11,11px)] font-medium ${status.connected ? 'text-bambu-gray' : 'text-status-error'}`}
+                >
+                  <span className={`h-[var(--pc-i2,0.5rem)] w-[var(--pc-i2,0.5rem)] rounded-full ${status.connected ? 'bg-status-ok' : 'bg-status-error'}`} />
+                  {status.connected ? t('printers.connection.connected') : t('printers.connection.offline')}
+                </span>
+              ) : null
+            )}
           </div>
 
           {/* Badges row - only in expanded mode */}
@@ -4009,7 +4024,7 @@ function PrinterCard({
                   pill renders — matches the backend default and prevents test
                   fixtures (or stale clients) from accidentally tripping the
                   maintenance UI. */}
-              {printer.is_active === false ? (
+              {!isRedesignedCard && (printer.is_active === false ? (
                 <span
                   className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
                   title={t('printers.maintenance.subtitle')}
@@ -4032,7 +4047,7 @@ function PrinterCard({
                   )}
                   {status?.connected ? t('printers.connection.connected') : t('printers.connection.offline')}
                 </span>
-              )}
+              ))}
               {/* Run connection diagnostic — offered when the printer is offline, NOT in maintenance */}
               {printer.is_active !== false && !status?.connected && (
                 <button
@@ -4045,7 +4060,7 @@ function PrinterCard({
                 </button>
               )}
               {/* Network connection indicator */}
-              {status?.connected && status?.wired_network && (
+              {!isRedesignedCard && status?.connected && status?.wired_network && (
                 <span
                   className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-status-ok/20 text-status-ok"
                   title={t('printers.connection.ethernet', 'Ethernet')}
@@ -4055,7 +4070,7 @@ function PrinterCard({
                 </span>
               )}
               {/* WiFi signal indicator */}
-              {status?.connected && !status?.wired_network && wifiSignal != null && (
+              {!isRedesignedCard && status?.connected && !status?.wired_network && wifiSignal != null && (
                 <span
                   className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
                     wifiSignal >= -50
@@ -4077,6 +4092,7 @@ function PrinterCard({
               {/* HMS Status Indicator */}
               {status?.connected && (() => {
                 const knownErrors = status.hms_errors ? filterKnownHMSErrors(status.hms_errors) : [];
+                if (isRedesignedCard && knownErrors.length === 0) return null;
                 return (
                   <button
                     onClick={() => setShowHMSModal(true)}
@@ -4099,6 +4115,7 @@ function PrinterCard({
                   "Idle" outside a monitored print, class-colored during one. */}
               {aiDetectionEnabled && (() => {
                 const cls = aiDetectionClass(aiDetection);
+                if (isRedesignedCard && !['failure', 'warning', 'error'].includes(cls)) return null;
                 const colorClass =
                   cls === 'failure'
                     ? 'bg-status-error/20 text-status-error'
@@ -4138,7 +4155,7 @@ function PrinterCard({
                 );
               })()}
               {/* Maintenance Status Indicator */}
-              {maintenanceInfo && (
+              {maintenanceInfo && (!isRedesignedCard || maintenanceInfo.due_count > 0 || maintenanceInfo.warning_count > 0) && (
                 <button
                   onClick={() => navigate('/maintenance')}
                   className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
@@ -4172,7 +4189,7 @@ function PrinterCard({
                 </button>
               )}
               {/* Firmware Version Badge */}
-              {checkPrinterFirmware && firmwareInfo?.current_version && firmwareInfo?.latest_version ? (
+              {checkPrinterFirmware && firmwareInfo?.current_version && firmwareInfo?.latest_version && (!isRedesignedCard || firmwareInfo.update_available) ? (
                 <button
                   onClick={() => setShowFirmwareModal(true)}
                   className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs hover:opacity-80 transition-opacity ${
@@ -4189,7 +4206,7 @@ function PrinterCard({
                   {firmwareInfo.update_available ? <Download className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" /> : <CheckCircle className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)]" />}
                   {firmwareInfo.current_version}
                 </button>
-              ) : status?.firmware_version ? (
+              ) : !isRedesignedCard && status?.firmware_version ? (
                 <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-bambu-dark-tertiary/50 text-bambu-gray">
                   {status.firmware_version}
                 </span>
@@ -4197,7 +4214,7 @@ function PrinterCard({
 
               {/* Enclosure Door Badge — models with an actual door sensor.
                   P1S has an enclosure door but no sensor; P1P has no enclosure at all. */}
-              {status?.connected && ['X1C', 'X1', 'X1E', 'X2D', 'P2S', 'H2D', 'H2D Pro', 'H2C', 'H2S'].includes(printer.model ?? '') && (
+              {status?.connected && ['X1C', 'X1', 'X1E', 'X2D', 'P2S', 'H2D', 'H2D Pro', 'H2C', 'H2S'].includes(printer.model ?? '') && (!isRedesignedCard || status.door_open) && (
                 <span
                   className={`flex items-center px-2 py-1 rounded-full text-xs ${
                     status.door_open
