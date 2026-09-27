@@ -131,6 +131,7 @@ describe('PrintersPage - Print Speed Control', () => {
         expect(screen.getByTestId('speed-control')).toBeEnabled();
       });
 
+      await user.click(screen.getByTestId('printer-controls-trigger'));
       await user.click(screen.getByTestId('speed-control'));
 
       await waitFor(() => {
@@ -156,6 +157,7 @@ describe('PrintersPage - Print Speed Control', () => {
         expect(screen.getByTestId('speed-control')).toBeEnabled();
       });
 
+      await user.click(screen.getByTestId('printer-controls-trigger'));
       await user.click(screen.getByTestId('speed-control'));
 
       await waitFor(() => {
@@ -191,6 +193,7 @@ describe('PrintersPage - Print Speed Control', () => {
         expect(screen.getByTestId('speed-control')).toBeEnabled();
       });
 
+      await user.click(screen.getByTestId('printer-controls-trigger'));
       await user.click(screen.getByTestId('speed-control'));
 
       await waitFor(() => {
@@ -222,6 +225,7 @@ describe('PrintersPage - Print Speed Control', () => {
         expect(screen.getByTestId('speed-control')).toBeEnabled();
       });
 
+      await user.click(screen.getByTestId('printer-controls-trigger'));
       await user.click(screen.getByTestId('speed-control'));
 
       await waitFor(() => {
@@ -261,6 +265,7 @@ describe('PrintersPage - Print Speed Control', () => {
         expect(screen.getByTestId('speed-control')).toBeEnabled();
       });
 
+      await user.click(screen.getByTestId('printer-controls-trigger'));
       await user.click(screen.getByTestId('speed-control'));
 
       await waitFor(() => {
