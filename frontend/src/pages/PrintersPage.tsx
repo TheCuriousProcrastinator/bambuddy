@@ -5859,9 +5859,9 @@ function PrinterCard({
               const singleNozzleSlot = rightNozzleSlot || leftNozzleSlot;
               const canUseStatusControls = status.connected && hasPermission('printers:control');
               const statusControlTitle = canUseStatusControls ? undefined : t('printers.permission.noControl');
-              const statusControlClass = `relative text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 flex flex-col justify-center items-center transition-colors ${
-                canUseStatusControls ? 'cursor-pointer hover:bg-bambu-dark-tertiary' : 'cursor-default opacity-80'
-              }`;
+              const statusControlClass = isRedesignedCard
+                ? `relative text-center px-3 py-2 flex-1 flex flex-col justify-center items-center transition-colors ${canUseStatusControls ? 'cursor-pointer hover:bg-white/5' : 'cursor-default opacity-80'}`
+                : `relative text-center px-2 py-1.5 bg-bambu-dark rounded-lg flex-1 flex flex-col justify-center items-center transition-colors ${canUseStatusControls ? 'cursor-pointer hover:bg-bambu-dark-tertiary' : 'cursor-default opacity-80'}`;
               // Chamber fan only exists on enclosed Bambu models. Open-frame
               // printers (A1, A1 Mini, A2L, P1P) have no chamber fan — showing
               // the widget there is at best dead UI and at worst suggests a
@@ -5937,7 +5937,12 @@ function PrinterCard({
 
               return (
                 <>
-                  <div className="mt-2 flex items-stretch gap-1.5 flex-wrap">
+                  <div
+                    data-testid="printer-telemetry-temperatures"
+                    className={isRedesignedCard
+                      ? 'mt-4 flex items-stretch gap-0 flex-wrap rounded-t-xl border border-b-0 border-bambu-dark-tertiary/70 bg-black/10 px-1 py-1'
+                      : 'mt-2 flex items-stretch gap-1.5 flex-wrap'}
+                  >
                     {/* Nozzle temp - combined for dual nozzle */}
                     <div
                       className={statusControlClass}
@@ -6153,7 +6158,12 @@ function PrinterCard({
                       <NozzleRackCard slots={status.nozzle_rack} filamentInfo={filamentInfo} />
                     )}
                   </div>
-                  <div className="mt-2 flex items-center gap-1.5">
+                  <div
+                    data-testid="printer-telemetry-fans"
+                    className={isRedesignedCard
+                      ? 'mt-0 flex items-center gap-0 rounded-b-xl border border-bambu-dark-tertiary/70 bg-black/10 px-1 py-1'
+                      : 'mt-2 flex items-center gap-1.5'}
+                  >
                     {fanItems.map(({ key, label, value, Icon, activeClass }) => {
                       const active = value > 0;
                       return (

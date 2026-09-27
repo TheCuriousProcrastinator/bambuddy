@@ -289,6 +289,52 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect(surface!.className).not.toContain('bg-black/10');
   });
 
+  it.each(['2', '3'])('groups telemetry into one calm M/L surface at size %s', async (cardSize) => {
+    await cardStyleAt(cardSize);
+
+    const temperatures = await screen.findByTestId('printer-telemetry-temperatures');
+    const fans = await screen.findByTestId('printer-telemetry-fans');
+
+    expect(temperatures.className).toContain('mt-4');
+    expect(temperatures.className).toContain('gap-0');
+    expect(temperatures.className).toContain('rounded-t-xl');
+    expect(temperatures.className).toContain('border-b-0');
+    expect(temperatures.className).toContain('bg-black/10');
+
+    expect(fans.className).toContain('mt-0');
+    expect(fans.className).toContain('gap-0');
+    expect(fans.className).toContain('rounded-b-xl');
+    expect(fans.className).toContain('bg-black/10');
+
+    const firstTemperatureCell = temperatures.querySelector(':scope > div');
+    expect(firstTemperatureCell).not.toBeNull();
+    expect(firstTemperatureCell!.className).toContain('px-3');
+    expect(firstTemperatureCell!.className).toContain('py-2');
+    expect(firstTemperatureCell!.className).not.toContain('bg-bambu-dark');
+    expect(firstTemperatureCell!.className).not.toContain('rounded-lg');
+  });
+
+  it('keeps legacy telemetry grouping on XL', async () => {
+    await cardStyleAt('4');
+
+    const temperatures = await screen.findByTestId('printer-telemetry-temperatures');
+    const fans = await screen.findByTestId('printer-telemetry-fans');
+
+    expect(temperatures.className).toContain('mt-2');
+    expect(temperatures.className).toContain('gap-1.5');
+    expect(temperatures.className).not.toContain('bg-black/10');
+    expect(temperatures.className).not.toContain('rounded-t-xl');
+
+    expect(fans.className).toContain('mt-2');
+    expect(fans.className).toContain('gap-1.5');
+    expect(fans.className).not.toContain('bg-black/10');
+
+    const firstTemperatureCell = temperatures.querySelector(':scope > div');
+    expect(firstTemperatureCell).not.toBeNull();
+    expect(firstTemperatureCell!.className).toContain('bg-bambu-dark');
+    expect(firstTemperatureCell!.className).toContain('rounded-lg');
+  });
+
   it('leaves S at the same sizes — the dense fleet view wants density', async () => {
     const style = await cardStyleAt('1');
 

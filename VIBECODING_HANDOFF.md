@@ -42,17 +42,17 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - PR base: `alex-custom`
 - PR head: `feature/printer-card-redesign-v2`
 
-Verified immediately before the Step 6 implementation commit:
+Verified immediately before the Step 7 implementation commit:
 
 - `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
 - `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
-- feature HEAD: `57978c590d9b4f0e0c9e9953f187f150258c7b88`
-- feature branch: 16 commits ahead and 0 behind `alex-custom`
+- feature HEAD: `1ce7a565b5bf9877857c75d63c3b5b5461df29ec`
+- feature branch: 18 commits ahead and 0 behind `alex-custom`
 - PR #2: open, draft, mergeable
-- Alex Custom PR CI for `57978c5`: success
-- Security Audit for `57978c5`: success
+- Alex Custom PR CI for `1ce7a56`: success
+- Security Audit for `1ce7a56`: success
 
-The Step 6 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
+The Step 7 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
 
 ### Important branch rule
 
@@ -481,6 +481,31 @@ Preserved unchanged:
 
 Focused regression coverage verifies the redesigned M/L treatment and the unchanged XL legacy treatment.
 
+### Completed: Step 7 M/L telemetry grouping
+
+Redesigned M/L cards now present temperatures and fans as one calmer telemetry surface.
+
+M/L-only presentation changes:
+
+- temperature row uses a shared `rounded-t-xl` bordered `bg-black/10` group
+- fan row attaches directly below with a matching `rounded-b-xl` group
+- shared telemetry gaps collapse from `gap-1.5` to `gap-0`
+- common temperature/control cells drop their individual dark rounded-card background and use slightly roomier `px-3 py-2`
+- common telemetry hover feedback becomes a subtle `hover:bg-white/5`
+
+Preserved unchanged:
+
+- all telemetry values
+- heater/fan state calculations
+- heater history controls
+- temperature mutations and popovers
+- fan mutations and popovers
+- active-nozzle behavior
+- permissions
+- S and XL legacy styling
+
+Focused regression coverage verifies M/L grouped telemetry styling and unchanged XL legacy grouping.
+
 ## GitHub CI
 
 Active PR workflow:
@@ -498,9 +523,9 @@ npm run check:i18n
 npm run build
 ```
 
-### Latest validated HEAD before Step 6
+### Latest validated HEAD before Step 7
 
-For `57978c590d9b4f0e0c9e9953f187f150258c7b88`:
+For `1ce7a565b5bf9877857c75d63c3b5b5461df29ec`:
 
 - Alex Custom PR CI: success
 - Frontend validation: success
@@ -682,7 +707,6 @@ Follow the design contract in order.
 
 Next remaining steps:
 
-7. Restyle telemetry grouping only.
 8. Restyle action/footer hierarchy only.
 9. Bound M/L widths in the page grid so a lone card does not stretch across an ultrawide display.
 10. Run full regression validation and manual P1S + AMS testing.
@@ -693,24 +717,23 @@ S and XL remain unchanged during this phase.
 
 ## Exact next development task
 
-**Step 7 only: restyle telemetry grouping for redesigned M/L cards.**
+**Step 8 only: restyle the action/footer hierarchy for redesigned M/L cards.**
 
-Before editing, inspect the current temperature/fan/telemetry markup and `docs/printer-card-redesign.md`.
+Before editing, inspect the current expanded controls/footer markup and `docs/printer-card-redesign.md`.
 
 Implementation constraints:
 
 - M/L only
 - S and XL remain unchanged
 - preserve the approved header -> AMS -> current job -> telemetry -> actions order
-- preserve the Step 5 divider cleanup and Step 6 current-job surface
-- do not move sections
-- do not change telemetry values, heater/fan states, or controls
-- do not change printer mutations
+- preserve the Step 5 divider cleanup, Step 6 current-job surface, and Step 7 telemetry grouping
+- do not move printer data sections
+- do not change printer controls, mutations, or permissions
+- do not change telemetry behavior
 - do not change Spoolman or F-code behavior
-- do not change permissions
 - keep the change visual and small
 
-Add or adjust focused regression coverage for the redesigned M/L telemetry grouping.
+Add or adjust focused regression coverage for the redesigned M/L action/footer hierarchy.
 
 Make this one small code change.
 
@@ -718,7 +741,7 @@ Update this handoff in the same meaningful commit.
 
 Then let GitHub PR CI finish.
 
-Do not continue to Step 8 until CI is green.
+Do not continue to Step 9 until CI is green.
 
 No Ninja action is required for this code-only step unless GitHub/source inspection cannot answer the issue.
 
@@ -774,4 +797,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-Continue from the exact active task only: Step 7, restyle telemetry grouping for redesigned M/L cards while keeping S/XL unchanged, preserve the approved section order plus the Step 5 divider cleanup and Step 6 current-job surface, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
+Continue from the exact active task only: Step 8, restyle the action/footer hierarchy for redesigned M/L cards while keeping S/XL unchanged, preserve the approved section order plus the Step 5 divider cleanup, Step 6 current-job surface, and Step 7 telemetry grouping, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
