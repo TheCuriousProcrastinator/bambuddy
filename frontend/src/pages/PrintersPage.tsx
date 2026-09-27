@@ -3492,6 +3492,7 @@ function PrinterCard({
   // this commit; later commits use this flag one section at a time.
   const isRedesignedCard = viewMode === 'expanded' && isPrinterCardRedesignSize(cardSize);
   const redesignScale = isPrinterCardRedesignSize(cardSize) ? PRINTER_CARD_REDESIGN_SCALE[cardSize] : null;
+  void isRedesignedCard;
   void redesignScale;
 
   const getImageSize = () => {
