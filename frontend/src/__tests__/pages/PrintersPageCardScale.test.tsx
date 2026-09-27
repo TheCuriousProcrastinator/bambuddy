@@ -225,6 +225,70 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect(within(card!).getByText('Status')).toBeInTheDocument();
   });
 
+  it.each([
+    ['2', 'w-28', 'h-28'],
+    ['3', 'w-32', 'h-32'],
+  ])('emphasizes the current-job surface at redesigned size %s', async (cardSize, coverWidth, contentHeight) => {
+    server.use(
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+        ...STATUS,
+        state: 'RUNNING',
+        current_print: 'surface-test.3mf',
+        subtask_name: 'Surface Test Job',
+        cover_url: '/surface-test.jpg',
+        progress: 42,
+        remaining_time: 30,
+      })),
+    );
+
+    await cardStyleAt(cardSize);
+
+    const jobTitle = await screen.findByText('Surface Test Job');
+    expect(jobTitle.className).toContain('text-base');
+    expect(jobTitle.className).toContain('font-semibold');
+
+    const surface = jobTitle.closest('div.relative.overflow-hidden');
+    expect(surface).not.toBeNull();
+    expect(surface!.className).toContain('rounded-xl');
+    expect(surface!.className).toContain('border-bambu-dark-tertiary/70');
+    expect(surface!.className).toContain('bg-black/10');
+    expect(surface!.className).toContain('p-3');
+
+    const cover = surface!.querySelector('img');
+    expect(cover).not.toBeNull();
+    expect(cover!.className).toContain(coverWidth);
+
+    const content = jobTitle.parentElement;
+    expect(content).not.toBeNull();
+    expect(content!.className).toContain(contentHeight);
+  });
+
+  it('keeps the legacy current-job surface on XL', async () => {
+    server.use(
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+        ...STATUS,
+        state: 'RUNNING',
+        current_print: 'legacy-surface-test.3mf',
+        subtask_name: 'Legacy Surface Test Job',
+        cover_url: '/legacy-surface-test.jpg',
+        progress: 42,
+      })),
+    );
+
+    await cardStyleAt('4');
+
+    const jobTitle = await screen.findByText('Legacy Surface Test Job');
+    expect(jobTitle.className).toContain('text-sm');
+    expect(jobTitle.className).not.toContain('font-semibold');
+
+    const surface = jobTitle.closest('div.relative.overflow-hidden');
+    expect(surface).not.toBeNull();
+    expect(surface!.className).toContain('p-2');
+    expect(surface!.className).toContain('bg-bambu-dark');
+    expect(surface!.className).toContain('rounded-[10px]');
+    expect(surface!.className).not.toContain('bg-black/10');
+  });
+
   it('leaves S at the same sizes — the dense fleet view wants density', async () => {
     const style = await cardStyleAt('1');
 

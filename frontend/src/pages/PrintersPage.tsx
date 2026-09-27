@@ -5730,7 +5730,7 @@ function PrinterCard({
                   const canSkipObjects = isActivePrint && objectCount !== 1 && hasPermission('printers:control');
 
                   return (
-                    <div className="p-2 bg-bambu-dark rounded-[10px] relative overflow-hidden">
+                    <div className={`relative overflow-hidden ${isRedesignedCard ? 'rounded-xl border border-bambu-dark-tertiary/70 bg-black/10 p-3' : 'p-2 bg-bambu-dark rounded-[10px]'}`}>
                       <button
                         onClick={() => setShowSkipObjectsModal(true)}
                         disabled={!canSkipObjects}
@@ -5760,14 +5760,14 @@ function PrinterCard({
                         <CoverImage
                           url={coverUrl}
                           printName={printName || undefined}
-                          className="w-24 h-24 max-[520px]:w-20 max-[520px]:h-20"
+                          className={isRedesignedCard ? (cardSize === 3 ? 'w-32 h-32 max-[620px]:w-24 max-[620px]:h-24' : 'w-28 h-28 max-[520px]:w-20 max-[520px]:h-20') : 'w-24 h-24 max-[520px]:w-20 max-[520px]:h-20'}
                         />
-                        <div className="flex h-24 max-[520px]:h-20 min-w-0 flex-1 flex-col justify-between pt-1">
+                        <div className={`flex min-w-0 flex-1 flex-col justify-between pt-1 ${isRedesignedCard ? (cardSize === 3 ? 'h-32 max-[620px]:h-24' : 'h-28 max-[520px]:h-20') : 'h-24 max-[520px]:h-20'}`}>
                           <div className="flex min-h-[18px] items-center gap-2 pr-8">
                             <p className="min-w-0 truncate text-sm text-bambu-gray">{getStatusDisplay(status.state, status.stg_cur_name)}</p>
                             {plateStatusPill}
                           </div>
-                          <p className={`min-h-[18px] truncate pr-8 text-sm ${printName ? 'text-white' : 'text-bambu-gray/70'}`}>
+                          <p className={`min-h-[18px] truncate pr-8 ${isRedesignedCard ? 'text-base font-semibold' : 'text-sm'} ${printName ? 'text-white' : 'text-bambu-gray/70'}`}>
                             {printName || t('printers.noActiveJob', 'No active job')}
                           </p>
                           <div className="flex h-3 items-center gap-2 text-sm">

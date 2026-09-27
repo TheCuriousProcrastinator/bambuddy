@@ -19,19 +19,15 @@ The current development phase is the **M/L printer-card redesign**.
 
 ### Interim checkpoint - September 27, 2026
 
-This file is intentionally refreshed as a safe resume point before Step 6.
+The safe pre-Step-6 checkpoint was committed as `57978c590d9b4f0e0c9e9953f187f150258c7b88`.
 
-Verified immediately before this handoff-only checkpoint commit:
+That documentation-only checkpoint was fully green:
 
-- feature HEAD: `f811b07163adb444ba9e99676155b572e5494b8b`
-- feature branch: 15 commits ahead and 0 behind `alex-custom`
-- PR #2: open, draft, mergeable
 - Alex Custom PR CI: success
 - Security Audit: success
-- Ninja source checkout was synced by the user to `f811b071`
-- current Docker/runtime UI has not been rebuilt or visually validated from this redesign branch
-
-This checkpoint commit changes documentation only. The exact next development task remains Step 6.
+- PR #2 remained open, draft, and mergeable
+- Ninja source checkout had been synced through functional HEAD `f811b071`
+- current Docker/runtime UI had not been rebuilt or visually validated from this redesign branch
 
 This redesign must remain visual and incremental. Preserve printer controls, AMS interactions, inventory integration, permissions, MQTT-derived state, and existing workflows.
 
@@ -46,17 +42,17 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - PR base: `alex-custom`
 - PR head: `feature/printer-card-redesign-v2`
 
-Current checkpoint verification:
+Verified immediately before the Step 6 implementation commit:
 
 - `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
 - `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
-- last functional feature HEAD before this documentation-only checkpoint: `f811b07163adb444ba9e99676155b572e5494b8b`
-- feature branch: 15 commits ahead and 0 behind `alex-custom`
+- feature HEAD: `57978c590d9b4f0e0c9e9953f187f150258c7b88`
+- feature branch: 16 commits ahead and 0 behind `alex-custom`
 - PR #2: open, draft, mergeable
-- Alex Custom PR CI for `f811b071`: success
-- Security Audit for `f811b071`: success
+- Alex Custom PR CI for `57978c5`: success
+- Security Audit for `57978c5`: success
 
-This documentation-only checkpoint commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
+The Step 6 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
 
 ### Important branch rule
 
@@ -460,6 +456,31 @@ Focused regression coverage verifies:
 - M and L omit the legacy `FILAMENTS` and `STATUS` divider labels
 - XL still renders both legacy divider labels
 
+### Completed: Step 6 M/L current-job surface
+
+Redesigned M/L cards now give the current job stronger visual priority without changing job data or controls.
+
+M/L-only presentation changes:
+
+- current-job surface uses a calmer `rounded-xl` bordered `bg-black/10` treatment with `p-3`
+- job title uses `text-base font-semibold`
+- M thumbnail/content height grows from 24 to 28 Tailwind units
+- L thumbnail/content height grows proportionally to 32 Tailwind units
+- responsive fallbacks remain in place for narrower viewports
+
+Preserved unchanged:
+
+- job state text
+- progress values and progress-bar behavior
+- skip-object control and permissions
+- retained-print handling
+- ETA, layer, and user metadata
+- queue widget
+- S compact path
+- XL legacy expanded current-job styling
+
+Focused regression coverage verifies the redesigned M/L treatment and the unchanged XL legacy treatment.
+
 ## GitHub CI
 
 Active PR workflow:
@@ -477,9 +498,9 @@ npm run check:i18n
 npm run build
 ```
 
-### Latest validated functional HEAD before this interim checkpoint
+### Latest validated HEAD before Step 6
 
-For `f811b07163adb444ba9e99676155b572e5494b8b`:
+For `57978c590d9b4f0e0c9e9953f187f150258c7b88`:
 
 - Alex Custom PR CI: success
 - Frontend validation: success
@@ -660,7 +681,6 @@ Follow the design contract in order.
 
 Next remaining steps:
 
-6. Restyle current-job surface only.
 7. Restyle telemetry grouping only.
 8. Restyle action/footer hierarchy only.
 9. Bound M/L widths in the page grid so a lone card does not stretch across an ultrawide display.
@@ -672,24 +692,24 @@ S and XL remain unchanged during this phase.
 
 ## Exact next development task
 
-**Step 6 only: restyle the current-job surface for redesigned M/L cards.**
+**Step 7 only: restyle telemetry grouping for redesigned M/L cards.**
 
-Before editing, inspect the current current-job markup and `docs/printer-card-redesign.md`.
+Before editing, inspect the current temperature/fan/telemetry markup and `docs/printer-card-redesign.md`.
 
 Implementation constraints:
 
 - M/L only
 - S and XL remain unchanged
 - preserve the approved header -> AMS -> current job -> telemetry -> actions order
-- preserve the Step 5 divider cleanup
+- preserve the Step 5 divider cleanup and Step 6 current-job surface
 - do not move sections
-- do not change printer controls or mutations
+- do not change telemetry values, heater/fan states, or controls
+- do not change printer mutations
 - do not change Spoolman or F-code behavior
-- do not change telemetry data
 - do not change permissions
 - keep the change visual and small
 
-Add or adjust focused regression coverage for the redesigned M/L current-job surface.
+Add or adjust focused regression coverage for the redesigned M/L telemetry grouping.
 
 Make this one small code change.
 
@@ -697,7 +717,7 @@ Update this handoff in the same meaningful commit.
 
 Then let GitHub PR CI finish.
 
-Do not continue to Step 7 until CI is green.
+Do not continue to Step 8 until CI is green.
 
 No Ninja action is required for this code-only step unless GitHub/source inspection cannot answer the issue.
 
@@ -753,4 +773,4 @@ Never guess about implementation details that can be inspected.
 
 Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
 
-Continue from the exact active task only: Step 6, restyle the current-job surface for redesigned M/L cards while keeping S/XL unchanged, preserve the approved section order and Step 5 divider cleanup, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
+Continue from the exact active task only: Step 7, restyle telemetry grouping for redesigned M/L cards while keeping S/XL unchanged, preserve the approved section order plus the Step 5 divider cleanup and Step 6 current-job surface, add focused coverage, update this handoff in the same commit, and stop after that small commit plus CI result.
