@@ -10,7 +10,7 @@
  * until the user reaches for a size that is already asking for more space.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { render } from '../utils';
 import { PrintersPage } from '../../pages/PrintersPage';
 import { http, HttpResponse } from 'msw';
@@ -168,6 +168,264 @@ describe('PrintersPage — printer card body scale (#1848)', () => {
     expect(style.getPropertyValue('--pc-t8')).toBe('8px');
     expect(style.getPropertyValue('--pc-i3')).toBe('12px');
     expect(style.getPropertyValue('--pc-i4')).toBe('16px');
+  });
+
+  it('labels AMS humidity explicitly on the redesigned M card', async () => {
+    await cardStyleAt('2');
+
+    expect((await screen.findAllByText('Humidity')).length).toBeGreaterThan(0);
+  });
+
+  it('orders redesigned M content as printer header, AMS, then current job', async () => {
+    server.use(
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+        ...STATUS,
+        state: 'RUNNING',
+        current_print: 'order-test.3mf',
+        subtask_name: 'Order Test Job',
+        progress: 42,
+        remaining_time: 30,
+      })),
+    );
+
+    await cardStyleAt('2');
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const header = card!.querySelector('h3');
+    expect(header).not.toBeNull();
+
+    const humidity = (await screen.findAllByText('Humidity'))[0];
+    const currentJob = await screen.findByText('Order Test Job');
+
+    expect(header!.compareDocumentPosition(humidity) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(humidity.compareDocumentPosition(currentJob) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it.each(['2', '3'])('removes legacy FILAMENTS and STATUS dividers from redesigned size %s', async (cardSize) => {
+    await cardStyleAt(cardSize);
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    await within(card!).findAllByText('Humidity');
+
+    expect(within(card!).queryByText('Filaments')).not.toBeInTheDocument();
+    expect(within(card!).queryByText('Status')).not.toBeInTheDocument();
+  });
+
+  it('keeps legacy FILAMENTS and STATUS dividers on XL', async () => {
+    await cardStyleAt('4');
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    expect(await within(card!).findByText('Filaments')).toBeInTheDocument();
+    expect(within(card!).getByText('Status')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['2', 'w-28', 'h-28', '14px', '20px'],
+    ['3', 'w-32', 'h-32', '17px', '24px'],
+  ])('emphasizes the current-job surface at redesigned size %s', async (cardSize, coverWidth, contentHeight, surfacePadding, majorGap) => {
+    server.use(
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+        ...STATUS,
+        state: 'RUNNING',
+        current_print: 'surface-test.3mf',
+        subtask_name: 'Surface Test Job',
+        cover_url: '/surface-test.jpg',
+        progress: 42,
+        remaining_time: 30,
+      })),
+    );
+
+    await cardStyleAt(cardSize);
+
+    const jobTitle = await screen.findByText('Surface Test Job');
+    expect(jobTitle.className).toContain('text-base');
+    expect(jobTitle.className).toContain('font-semibold');
+
+    const surface = jobTitle.closest('div.relative.overflow-hidden');
+    expect(surface).not.toBeNull();
+    expect(surface!.className).toContain('rounded-xl');
+    expect(surface!.className).toContain('border-bambu-dark-tertiary/50');
+    expect(surface!.className).toContain('bg-black/10');
+    expect(surface!.style.padding).toBe(surfacePadding);
+    expect(surface!.style.marginTop).toBe(majorGap);
+
+    const coverWrapper = surface!.querySelector('img')?.parentElement;
+    expect(coverWrapper).not.toBeNull();
+    expect(coverWrapper!.className).toContain(coverWidth);
+
+    const content = jobTitle.parentElement;
+    expect(content).not.toBeNull();
+    expect(content!.className).toContain(contentHeight);
+  });
+
+  it('keeps the legacy current-job surface on XL', async () => {
+    server.use(
+      http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
+        ...STATUS,
+        state: 'RUNNING',
+        current_print: 'legacy-surface-test.3mf',
+        subtask_name: 'Legacy Surface Test Job',
+        cover_url: '/legacy-surface-test.jpg',
+        progress: 42,
+      })),
+    );
+
+    await cardStyleAt('4');
+
+    const jobTitle = await screen.findByText('Legacy Surface Test Job');
+    expect(jobTitle.className).toContain('text-sm');
+    expect(jobTitle.className).not.toContain('font-semibold');
+
+    const surface = jobTitle.closest('div.relative.overflow-hidden');
+    expect(surface).not.toBeNull();
+    expect(surface!.className).toContain('p-2');
+    expect(surface!.className).toContain('bg-bambu-dark');
+    expect(surface!.className).toContain('rounded-[10px]');
+    expect(surface!.className).not.toContain('bg-black/10');
+  });
+
+  it.each([
+    ['2', '20px'],
+    ['3', '24px'],
+  ])('groups telemetry into one calm M/L surface at size %s', async (cardSize, majorGap) => {
+    await cardStyleAt(cardSize);
+
+    const temperatures = await screen.findByTestId('printer-telemetry-temperatures');
+    const fans = await screen.findByTestId('printer-telemetry-fans');
+
+    expect(temperatures.style.marginTop).toBe(majorGap);
+    expect(temperatures.className).toContain('gap-0');
+    expect(temperatures.className).toContain('rounded-t-xl');
+    expect(temperatures.className).toContain('border-b-0');
+    expect(temperatures.className).toContain('border-bambu-dark-tertiary/50');
+    expect(temperatures.className).toContain('bg-black/10');
+    expect(temperatures.className).toContain('px-1.5');
+    expect(temperatures.className).toContain('py-1.5');
+
+    expect(fans.className).toContain('mt-0');
+    expect(fans.className).toContain('gap-0');
+    expect(fans.className).toContain('rounded-b-xl');
+    expect(fans.className).toContain('border-bambu-dark-tertiary/50');
+    expect(fans.className).toContain('bg-black/10');
+    expect(fans.className).toContain('px-1.5');
+    expect(fans.className).toContain('py-1.5');
+
+    const firstTemperatureCell = temperatures.querySelector(':scope > div');
+    expect(firstTemperatureCell).not.toBeNull();
+    expect(firstTemperatureCell!.className).toContain('px-3');
+    expect(firstTemperatureCell!.className).toContain('py-2');
+    expect(firstTemperatureCell!.className).not.toContain('bg-bambu-dark');
+    expect(firstTemperatureCell!.className).not.toContain('rounded-lg');
+  });
+
+  it('keeps legacy telemetry grouping on XL', async () => {
+    await cardStyleAt('4');
+
+    const temperatures = await screen.findByTestId('printer-telemetry-temperatures');
+    const fans = await screen.findByTestId('printer-telemetry-fans');
+
+    expect(temperatures.className).toContain('mt-2');
+    expect(temperatures.className).toContain('gap-1.5');
+    expect(temperatures.className).not.toContain('bg-black/10');
+    expect(temperatures.className).not.toContain('rounded-t-xl');
+
+    expect(fans.className).toContain('mt-2');
+    expect(fans.className).toContain('gap-1.5');
+    expect(fans.className).not.toContain('bg-black/10');
+
+    const firstTemperatureCell = temperatures.querySelector(':scope > div');
+    expect(firstTemperatureCell).not.toBeNull();
+    expect(firstTemperatureCell!.className).toContain('bg-bambu-dark');
+    expect(firstTemperatureCell!.className).toContain('rounded-lg');
+  });
+
+  it.each([
+    ['2', '20px'],
+    ['3', '24px'],
+  ])('uses progressive action hierarchy on redesigned size %s', async (cardSize, majorGap) => {
+    await cardStyleAt(cardSize);
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const section = await within(card!).findByTestId('printer-controls-section');
+    const trigger = within(card!).getByTestId('printer-controls-trigger');
+    const secondary = within(card!).getByTestId('printer-secondary-controls');
+    const headerActions = within(card!).getByTestId('printer-header-status-actions');
+    const actionsMenu = within(card!).getByTestId('printer-actions-menu');
+    const footer = within(card!).getByTestId('printer-footer-actions');
+
+    expect(section.style.marginTop).toBe(majorGap);
+    expect(section.className).toContain('border-t');
+    expect(section.className).toContain('border-bambu-dark-tertiary/40');
+    expect(section.className).toContain('pt-3');
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(secondary.className).toContain('hidden');
+    expect(secondary.className).toContain('absolute');
+
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(secondary.className).toContain('flex');
+    expect(secondary.className).not.toContain('hidden');
+
+    expect(headerActions).toContainElement(actionsMenu);
+    expect(footer).not.toContainElement(actionsMenu);
+  });
+
+  it('keeps legacy action hierarchy on XL', async () => {
+    await cardStyleAt('4');
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const section = await within(card!).findByTestId('printer-controls-section');
+    const secondary = within(card!).getByTestId('printer-secondary-controls');
+    const actionsMenu = within(card!).getByTestId('printer-actions-menu');
+    const footer = within(card!).getByTestId('printer-footer-actions');
+
+    expect(within(card!).queryByTestId('printer-controls-trigger')).not.toBeInTheDocument();
+    expect(within(card!).queryByTestId('printer-header-status-actions')).not.toBeInTheDocument();
+
+    expect(section.className).toContain('mt-3');
+    expect(section.className).not.toContain('border-t');
+
+    expect(secondary.className).toContain('flex');
+    expect(secondary.className).not.toContain('absolute');
+
+    expect(footer).toContainElement(actionsMenu);
+  });
+
+  it.each([
+    ['2', '137rem'],
+    ['3', '113.5rem'],
+  ])('bounds the redesigned size %s page grid to its target card width', async (cardSize, maxWidth) => {
+    await cardStyleAt(cardSize);
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const grid = card!.parentElement as HTMLElement | null;
+    expect(grid).not.toBeNull();
+    expect(grid!.style.maxWidth).toBe(maxWidth);
+  });
+
+  it.each(['1', '4'])('keeps legacy size %s page grid width behavior', async (cardSize) => {
+    await cardStyleAt(cardSize);
+
+    const card = document.getElementById('printer-card-1');
+    expect(card).not.toBeNull();
+
+    const grid = card!.parentElement as HTMLElement | null;
+    expect(grid).not.toBeNull();
+    expect(grid!.style.maxWidth).toBe('');
   });
 
   it('leaves S at the same sizes — the dense fleet view wants density', async () => {

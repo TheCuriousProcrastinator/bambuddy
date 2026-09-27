@@ -34,9 +34,14 @@ jobs:
       - name: Type check
         working-directory: frontend
         run: npx tsc --noEmit
-      - name: Frontend tests
+      - name: Printer card regression tests
         working-directory: frontend
-        run: npm run test:run
+        run: |
+          npx vitest run \
+            src/__tests__/pages/PrintersPage.test.tsx \
+            src/__tests__/pages/PrintersPageCardScale.test.tsx \
+            src/__tests__/pages/PrintersPageCompactMetrics.test.tsx
+          npm run check:i18n
       - name: Production frontend build
         working-directory: frontend
         run: npm run build

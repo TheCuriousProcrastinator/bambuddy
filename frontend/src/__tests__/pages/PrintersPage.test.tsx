@@ -151,6 +151,18 @@ describe('PrintersPage', () => {
       });
     });
 
+    it('uses a quiet connection summary and hides healthy diagnostic noise at M', async () => {
+      render(<PrintersPage />);
+
+      const summary = await screen.findByTestId('printer-connection-summary-1');
+      expect(summary).toHaveTextContent('Connected');
+
+      const card = document.getElementById('printer-card-1');
+      expect(card).not.toBeNull();
+      expect(within(card!).queryByText('-50dBm')).not.toBeInTheDocument();
+      expect(within(card!).queryByTitle('Click to view HMS errors')).not.toBeInTheDocument();
+    });
+
     it('offers FTP file browsing when MQTT status is offline', async () => {
       server.use(
         http.get('/api/v1/printers/:id/status', () => {

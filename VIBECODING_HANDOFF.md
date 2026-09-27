@@ -1,0 +1,903 @@
+# VIBECODING_HANDOFF.md
+
+## Project
+
+**Name:** Bambuddy custom fork
+
+**Purpose:** Alex's custom Bambuddy fork for managing and controlling Bambu Lab printers from a self-hosted web UI.
+
+The fork adds custom behavior on top of upstream Bambuddy, including:
+
+- internal inventory F-code stock IDs
+- merge-safe persistent inventory undo/redo
+- F-code reconnect persistence
+- custom printer/AMS behavior fixes
+- custom CI/deployment work
+- an incremental redesign of the Printers page M/L cards
+
+The current development phase is the **M/L printer-card redesign**.
+
+### Validated Step 8 checkpoint - September 27, 2026
+
+The active feature branch is manually and automatically validated through Step 8 at functional HEAD:
+
+`3789af8b4515832125ba4ba239d58f7044a319df`
+
+Verified at that checkpoint:
+
+- Alex Custom PR CI: success
+- Security Audit: success
+- PR #2 remained open, draft, and mergeable
+- Ninja source checkout was synced to `3789af8`
+- the custom Docker image was rebuilt from that checkout
+- `http://127.0.0.1:8001/health` returned `{"status":"healthy"}`
+- the running container used the newly built image
+- the served Vite bundle contained the Step 8 controls marker and matched the bundle referenced by the live root page
+- Alex manually verified the redesigned M/L P1S + AMS layout in the live UI
+
+The manual verification was visual/layout validation only. It does not replace the final Step 10 functional/manual regression pass.
+
+This redesign must remain visual and incremental. Preserve printer controls, AMS interactions, inventory integration, permissions, MQTT-derived state, and existing workflows.
+
+## Repository and branch model
+
+- GitHub: `TheCuriousProcrastinator/bambuddy`
+- Visibility: public fork of `maziggy/bambuddy`
+- Default branch: `main`
+- Custom stable branch: `alex-custom`
+- Active development branch: `feature/printer-card-redesign-v2`
+- Active draft PR: **#2 - Redesign M/L printer cards incrementally**
+- PR base: `alex-custom`
+- PR head: `feature/printer-card-redesign-v2`
+
+Verified for the Step 8 release checkpoint before this handoff-only commit:
+
+- `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
+- `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
+- feature HEAD: `3789af8b4515832125ba4ba239d58f7044a319df`
+- feature branch: 21 commits ahead and 0 behind `alex-custom`
+- PR #2: open, draft, mergeable
+- Alex Custom PR CI for `3789af8`: success
+- Security Audit for `3789af8`: success
+- live Ninja Docker/UI visual validation through Step 8: passed
+
+This release-checkpoint commit updates documentation only. Always verify the actual current HEAD before changing anything.
+
+### Important branch rule
+
+Do **not** use `main` as the custom development baseline.
+
+The custom fork work lives on `alex-custom`.
+
+At handoff creation, `alex-custom` and `main` were significantly diverged. Treat `alex-custom` as the custom stable base and the active feature branch as the current work branch.
+
+Do not casually merge/rebase `main` into `alex-custom` during printer-card work.
+
+## Current application version and release state
+
+Verified from current source:
+
+- `backend/app/core/config.py`
+- `APP_VERSION = "1.2.5.6"`
+
+Verified release/tag state:
+
+- tag `v1.2.5.6`
+- tag commit: `e548ba65e18743ac2fd27f98a53c1d16efbf75fa`
+- GitHub Releases collection: empty
+- this fork currently uses tags rather than GitHub Release objects
+
+`alex-custom` contains unreleased custom commits after the `v1.2.5.6` tag.
+
+No new application version has been assigned for the printer-card redesign.
+
+Do not bump the version or create a release until the redesign has passed automated and manual validation.
+
+## Runtime and deployment
+
+Historical verified local deployment:
+
+- host: Ninja
+- source checkout:
+  `/Users/ninja/docker/bambuddy/.bambuddy-custom-v1.2.5.5`
+- parent Compose directory:
+  `/Users/ninja/docker/bambuddy`
+- Docker service/container:
+  `bambuddy`
+- local UI/API:
+  `http://127.0.0.1:8001/`
+
+The checkout directory name is stale. Source version is 1.2.5.6.
+
+The Ninja source checkout was explicitly synced by the user through Step 9 HEAD `6961195e`.
+
+The live Docker runtime was rebuilt from that checkout on September 27, 2026, `/health` was healthy, and Alex reviewed the live M/L P1S + AMS layout before requesting the final spacing polish.
+
+Verified runtime details:
+
+- Compose working directory: `/Users/ninja/docker/bambuddy`
+- Compose files:
+  - `docker-compose.yml`
+  - `docker-compose.override.yml`
+- running image name: `bambuddy-local:1.2.5.5-fnote`
+- validated image ID: `sha256:6991f505a0b4e959de0faac00323542d42c26aea85bd714bfc8e568c1914645e`
+- data volume: `bambuddy_bambuddy_data -> /app/data`
+- logs volume: `bambuddy_bambuddy_logs -> /app/logs`
+- no source bind mount is present
+- health endpoint returned healthy
+- built/served JS asset at validation time: `/assets/index-c0xAOXbm.js`
+- that asset contained `printer-controls-trigger`, `speed-control`, and the Step 8 quick-controls width class
+
+Important local-build quirk:
+
+The customized parent Compose resolves `build.context` to `/Users/ninja/docker/bambuddy` and expects `Dockerfile` there, but the parent directory currently has no Dockerfile. The actual application Dockerfile lives in:
+
+`/Users/ninja/docker/bambuddy/.bambuddy-custom-v1.2.5.5/Dockerfile`
+
+Therefore a Git pull alone does not change the live UI, and `docker compose up -d --build` from the parent directory is not currently a reliable rebuild path.
+
+The verified working rebuild path is:
+
+1. build `bambuddy-local:1.2.5.5-fnote` directly from the source checkout
+2. recreate the parent Compose service with `--no-build --force-recreate`
+
+The named data/log volumes remain intact across this image recreation.
+
+### Compose rule
+
+The parent Compose setup is customized.
+
+**Do not replace it with the stock repository `docker-compose.yml`.**
+
+If visual/runtime behavior differs from source, verify the actual container image/source before editing code. Stale Docker images have caused source/UI mismatches before.
+
+## Architecture
+
+### Backend
+
+- FastAPI
+- async SQLAlchemy
+- SQLite in the local deployment
+- MQTT integration for printer state/control
+- WebSockets for live UI updates
+
+Important custom backend files:
+
+- `backend/app/main.py`
+- `backend/app/core/config.py`
+- `backend/app/core/database.py`
+- `backend/app/api/routes/inventory.py`
+- `backend/app/models/spool.py`
+- `backend/app/models/spool_assignment.py`
+- `backend/app/models/spool_usage_history.py`
+- `backend/app/models/spool_k_profile.py`
+- `backend/app/models/spool_filament_preset.py`
+- `backend/app/models/undo_operation.py`
+
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- TanStack Query
+- existing Bambuddy theme variables/components
+
+Critical files for the active redesign:
+
+- `frontend/src/pages/PrintersPage.tsx`
+- `frontend/src/__tests__/pages/PrintersPage.test.tsx`
+- `frontend/src/__tests__/pages/PrintersPageCardScale.test.tsx`
+- `frontend/src/__tests__/pages/PrintersPageCompactMetrics.test.tsx`
+- `docs/printer-card-redesign.md`
+- `.github/workflows/alex-custom-pr-ci.yml`
+
+`PrintersPage.tsx` is a very large monolithic file, roughly 10,000 lines / 500+ KB.
+
+It mixes presentation and substantial printer behavior.
+
+Make surgical changes only.
+
+Do not refactor the entire page while the visual design is still being stabilized.
+
+## Existing custom behavior that must remain intact
+
+### F-code inventory IDs
+
+Internal inventory supports short stock IDs such as:
+
+`F0001`
+
+The field is hidden when Spoolman owns inventory.
+
+The printer-page F-code picker can point a live slot at the desired F-code before merging a duplicate inventory row.
+
+### F-code merge endpoint
+
+`POST /api/v1/inventory/spools/{source_spool_id}/merge`
+
+Important invariants:
+
+- source and target must differ
+- canonical code format is `F0000`
+- target must still own the F-code
+- target cannot be archived
+- material must match
+- subtype/brand/color must match when both records provide values
+- source cannot still be assigned to a printer slot
+- target stock totals remain authoritative
+- source stock totals are not summed into target
+- usage history is moved
+- non-conflicting K profiles and filament presets are moved
+- newer `last_used` wins
+- metadata collisions favor target
+- source row is deleted after dependents move
+
+### Persistent global undo/redo
+
+Current reversible coverage is **inventory merge only**, not universal undo.
+
+Shortcuts:
+
+- macOS: Cmd+Z undo, Cmd+Shift+Z redo
+- Windows/Linux: Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo
+
+Shortcut handler ignores:
+
+- form/input controls
+- contentEditable areas
+- repeated keydown events
+
+Backend routes:
+
+- `POST /api/v1/inventory/undo`
+- `POST /api/v1/inventory/redo`
+
+Do not use `/undo` as a health probe. It can mutate real history.
+
+Printer slot reassignment is intentionally separate from merge undo.
+
+Undo restores the inventory source row but does not automatically reassign an AMS slot.
+
+This is a print-safety decision.
+
+### F-code reconnect persistence
+
+Relevant code:
+
+`backend/app/main.py:on_ams_change()`
+
+When a slot is assigned to an F-code, a new Bambu RFID UUID should not destroy the assignment if the live spool still matches the F-code bucket by:
+
+**material + color**
+
+A genuine material/color change should still unlink/reconcile.
+
+Do not replace this with a permanently sticky F-code assignment rule.
+
+### Historical baseline tests
+
+Previously verified custom-behavior tests include:
+
+- F-code reconnect regression: 2 passed, 40 deselected
+- merge undo/redo integration tests: 5 passed
+- global shortcut tests: 3 passed
+
+Preserve these behaviors during unrelated UI work.
+
+## Printer-card redesign contract
+
+Authoritative design document:
+
+`docs/printer-card-redesign.md`
+
+### Core rule
+
+**M and L use exactly the same composition.**
+
+L is only a proportional scale-up of M.
+
+Elements do not move between M and L.
+
+L does not reveal extra information.
+
+S and XL remain unchanged during this redesign phase.
+
+### Approved information order
+
+1. Printer header
+2. AMS
+3. Current job
+4. Telemetry
+5. Actions
+
+### Visual principles
+
+- AMS sits directly below printer identity.
+- AMS humidity must be explicitly labeled.
+- Healthy status noise should not dominate.
+- Current job, progress, ETA, and actionable problems get strongest hierarchy.
+- Telemetry should be calmer and grouped.
+- Rare controls should use progressive disclosure.
+- Prefer proximity/whitespace before borders/dividers.
+- Preserve the existing theme engine.
+- Green should primarily communicate active/good state.
+- Preserve existing printer behavior and interaction semantics.
+
+## M/L redesign scale tokens
+
+Current source contains:
+
+`PRINTER_CARD_REDESIGN_SCALE`
+
+M / card size 2:
+
+- scale: 1.0
+- target width: 45 rem
+- outer padding: 16 px
+- major gap: 20 px
+- minor gap: 8 px
+- surface padding: 14 px
+- control height: 36 px
+
+L / card size 3:
+
+- scale: 1.2
+- target width: 56 rem
+- outer padding: 20 px
+- major gap: 24 px
+- minor gap: 10 px
+- surface padding: 17 px
+- control height: 43 px
+
+Current source also contains:
+
+`isPrinterCardRedesignSize(cardSize)`
+
+which identifies only sizes 2 and 3.
+
+`isRedesignedCard` is gated by:
+
+- expanded view
+- M/L size
+
+The older `CARD_BODY_SCALE` remains for legacy body/icon scaling.
+
+## Current redesign implementation
+
+Final validated printer-card redesign HEAD:
+
+`ea9d13ae8fbbdf1591b05fdfe608a15023d8453e`
+
+Step 10 is complete.
+
+Verified for the final spacing-polish HEAD:
+
+- Alex Custom PR CI: success
+- Security Audit: success
+- focused printer-card regression tests: success
+- production frontend build: success
+- Ninja source checkout synced to `ea9d13ae`
+- custom Docker image rebuilt successfully
+- Compose service recreated successfully
+- `/health` returned `{"status":"healthy"}` after the container finished starting
+- Alex manually reviewed the final live M P1S + AMS card and approved the spacing/aesthetic result
+
+The full frontend suite was run immediately before the final spacing polish at Step 9 HEAD `6961195e`: 258 test files / 3539 tests passed, and i18n parity passed for every locale. The final polish then passed its focused M/L regression coverage, lint, type check, production build, and Security Audit.
+
+L had already passed live visual review before the final polish. M and L share one composition and the final spacing values are covered for both sizes by focused regression tests. Alex explicitly chose not to repeat manual S/XL screenshots; automated legacy-size coverage remains in place.
+
+### Completed: design contract
+
+Commit:
+
+`a394d913 Add incremental printer card redesign plan`
+
+Established the incremental design plan.
+
+### Completed: shared M/L gate and scale tokens
+
+Commits:
+
+- `7aa4f441 Prepare shared M/L printer card redesign tokens`
+- `7f427e60 Fix redesign prep lint`
+
+Established the shared M/L scale source of truth without changing S/XL.
+
+### Completed: M/L header cleanup
+
+Commit:
+
+`47ae5b67 Clean up M/L printer card header`
+
+For redesigned M/L cards:
+
+- connection state becomes a quiet dot + Connected/Offline summary
+- normal Wi-Fi dBm / wired-network pills are hidden
+- healthy HMS OK is hidden
+- real HMS issues still surface
+- healthy maintenance OK is hidden
+- due/warning maintenance still surfaces
+- closed enclosure door is hidden
+- open door can surface
+- maintenance-mode state remains visible
+
+Regression test:
+
+`uses a quiet connection summary and hides healthy diagnostic noise at M`
+
+Important limitation:
+
+The header is not the final redesign.
+
+Some legacy badges/secondary information still render under their existing conditions.
+
+Do not claim the badge wall is fully solved yet.
+
+### Completed: explicit AMS humidity label
+
+Commits:
+
+- `d3388780 Label AMS humidity on redesigned M/L cards`
+- `8d8a9054 Wait for AMS humidity label in test`
+
+`HumidityIndicator` now accepts an optional `label`.
+
+For redesigned M/L AMS headers, current code passes the localized `Humidity` label.
+
+S/XL retain legacy rendering.
+
+Regression test:
+
+`labels AMS humidity explicitly on the redesigned M card`
+
+### Completed: AMS section extraction only
+
+Latest functional commit:
+
+`6c4a97e6 Extract AMS section for safe card reordering`
+
+The large AMS JSX is now extracted into:
+
+`const amsSection = ...`
+
+inside `PrinterCard`.
+
+Purpose:
+
+Allow the AMS surface to move without copying or rewriting behavior.
+
+### Completed: Step 4 M/L AMS reorder
+
+The already-extracted `amsSection` now renders above the current-job/status surface for redesigned M/L cards only.
+
+Legacy S/XL cards keep the previous bottom AMS placement.
+
+The move does not duplicate or rewrite AMS internals and preserves:
+
+- slot rendering
+- assignment logic
+- hover cards
+- RFID actions
+- drying
+- Spoolman integration
+- internal inventory integration
+- F-code picker behavior
+- runout guidance
+- backup state
+- external spool behavior
+- permissions
+- callbacks/mutations
+
+Focused regression coverage now verifies M document order:
+
+`printer header -> AMS -> current job`
+
+The test waits for async AMS/status content before checking document order.
+
+### Completed: Step 5 M/L divider cleanup
+
+Redesigned M/L cards no longer render the legacy `FILAMENTS` or `STATUS` section labels and horizontal rule dividers.
+
+The change is presentation-only:
+
+- AMS backup state remains rendered
+- the external-spool toggle remains rendered
+- AMS internals and callbacks are unchanged
+- current-job content is unchanged
+- S/XL behavior remains unchanged; XL keeps the legacy divider presentation and S keeps its compact layout
+
+Focused regression coverage verifies:
+
+- M and L omit the legacy `FILAMENTS` and `STATUS` divider labels
+- XL still renders both legacy divider labels
+
+### Completed: Step 6 M/L current-job surface
+
+Redesigned M/L cards now give the current job stronger visual priority without changing job data or controls.
+
+M/L-only presentation changes:
+
+- current-job surface uses a calmer `rounded-xl` bordered `bg-black/10` treatment with `p-3`
+- job title uses `text-base font-semibold`
+- M thumbnail/content height grows from 24 to 28 Tailwind units
+- L thumbnail/content height grows proportionally to 32 Tailwind units
+- responsive fallbacks remain in place for narrower viewports
+
+Preserved unchanged:
+
+- job state text
+- progress values and progress-bar behavior
+- skip-object control and permissions
+- retained-print handling
+- ETA, layer, and user metadata
+- queue widget
+- S compact path
+- XL legacy expanded current-job styling
+
+Focused regression coverage verifies the redesigned M/L treatment and the unchanged XL legacy treatment.
+
+### Completed: Step 7 M/L telemetry grouping
+
+Redesigned M/L cards now present temperatures and fans as one calmer telemetry surface.
+
+M/L-only presentation changes:
+
+- temperature row uses a shared `rounded-t-xl` bordered `bg-black/10` group
+- fan row attaches directly below with a matching `rounded-b-xl` group
+- shared telemetry gaps collapse from `gap-1.5` to `gap-0`
+- common temperature/control cells drop their individual dark rounded-card background and use slightly roomier `px-3 py-2`
+- common telemetry hover feedback becomes a subtle `hover:bg-white/5`
+
+Preserved unchanged:
+
+- all telemetry values
+- heater/fan state calculations
+- heater history controls
+- temperature mutations and popovers
+- fan mutations and popovers
+- active-nozzle behavior
+- permissions
+- S and XL legacy styling
+
+Focused regression coverage verifies M/L grouped telemetry styling and unchanged XL legacy grouping.
+
+### Completed: Step 8 M/L action/footer hierarchy
+
+Redesigned M/L cards now keep primary print actions visible while placing secondary printer controls behind one deliberate Controls entry point.
+
+M/L-only hierarchy changes:
+
+- the legacy CONTROLS label/divider is replaced by a quieter top border before the action row
+- pause/resume and stop remain visible as primary print actions
+- chamber light, movement, plate detection, speed, airduct, and other existing secondary controls remain unchanged but live inside a Controls popover
+- the existing More printer-actions menu moves beside the M/L header connection summary
+- the footer retains camera/files/upload actions but no longer duplicates the More menu
+
+Preserved unchanged:
+
+- every existing control and mutation
+- all permissions and disabled states
+- confirmation dialogs and popovers
+- S and XL legacy control/footer hierarchy
+- Step 7 telemetry grouping
+
+Focused regression coverage verifies the M/L progressive action hierarchy, popover toggle, header More-menu placement, and unchanged XL legacy hierarchy.
+
+### Completed: Step 9 M/L page-grid width bounds
+
+Redesigned M/L page grids now stop growing once their existing maximum column layout reaches the approved target card widths.
+
+Layout-only behavior:
+
+- M keeps its existing 1/2/3-column breakpoints and caps the full grid at 137rem, equal to three 45rem target-width cards plus two existing 1rem gaps
+- L keeps its existing 1/2-column breakpoints and caps the full grid at 113.5rem, equal to two 56rem target-width cards plus the existing 1.5rem gap
+- the same bound applies to regular and grouped printer grids
+- S and XL receive no grid max-width and retain legacy width behavior
+- card information, controls, printer mutations, telemetry, permissions, Spoolman, AMS behavior, and F-code behavior are unchanged
+
+The cap is derived from `PRINTER_CARD_REDESIGN_SCALE` target widths so the target card width remains the source of truth.
+
+Focused regression coverage verifies the M/L grid bounds and confirms S/XL remain unbounded by this redesign helper.
+
+### Final M/L spacing polish after visual review
+
+After Step 9 was deployed on Ninja, Alex reviewed both L and M live P1S + AMS cards and approved the width/layout direction but found the body slightly too compressed.
+
+The final polish keeps widths and composition unchanged and changes M/L presentation only:
+
+- major section spacing increases to 20 px on M and 24 px on L
+- current-job surface padding becomes 14 px on M and 17 px on L
+- current-job and telemetry borders soften from 70% to 50% theme-border opacity
+- telemetry outer padding increases from 4 px to 6 px
+- the Controls divider softens to 40% opacity
+- typography, AMS slot geometry, current-job content, telemetry values, controls, and footer actions are unchanged
+- S/XL code paths remain unchanged
+
+Focused coverage asserts the new M/L spacing, padding, softer surface borders, telemetry padding, and Controls divider while retaining the existing XL legacy assertions.
+
+## Step 10 validation status before this polish commit
+
+Verified on Ninja against Step 9 HEAD `6961195e159c977c6aa0d5282433f8b62c8c020e`:
+
+- Docker image rebuild succeeded
+- container recreation succeeded
+- `http://127.0.0.1:8001/health` returned `{"status":"healthy"}`
+- full frontend regression suite passed: 258 test files / 3539 tests
+- i18n parity passed for every locale
+- Alex visually reviewed live L and M P1S + AMS cards
+- Alex explicitly chose not to spend additional manual time on S/XL screenshots; automated legacy-size regression coverage remains in place
+
+Because this polish changes presentation after that full-suite run, this commit still requires its own PR CI/Security checks and one final live M/L visual verification before Step 10 is closed.
+
+## GitHub CI
+
+Active PR workflow:
+
+`.github/workflows/alex-custom-pr-ci.yml`
+
+Focused frontend validation currently runs:
+
+```bash
+npm ci
+npm run lint
+npx tsc --noEmit
+npx vitest run   src/__tests__/pages/PrintersPage.test.tsx   src/__tests__/pages/PrintersPageCardScale.test.tsx   src/__tests__/pages/PrintersPageCompactMetrics.test.tsx
+npm run check:i18n
+npm run build
+```
+
+### Final validated redesign HEAD
+
+For `ea9d13ae8fbbdf1591b05fdfe608a15023d8453e`:
+
+- Alex Custom PR CI: success
+- Frontend validation: success
+- lint: success
+- type check: success
+- focused printer-card regression tests: success
+- production frontend build: success
+- Security Audit: success
+- Ninja Docker rebuild/recreate: success
+- live `/health`: success
+- final live M P1S + AMS visual validation: success
+
+Security Audit passed all configured jobs, including frontend/backend audits, Bandit, and Trivy.
+
+Final milestone full-suite result, run on Step 9 HEAD `6961195e` immediately before the spacing-only polish:
+
+- 258 test files passed
+- 3539 tests passed
+- i18n parity passed for every locale
+
+The spacing-only final commit then passed the focused M/L regression suite plus the complete PR CI and Security gates.
+
+## Development workflow
+
+### Small chunks only
+
+For this project phase:
+
+- one small change per commit
+- validate it
+- let CI finish
+- then continue
+- avoid big-bang redesigns
+- avoid long tool streams
+- do not dump investigation details unless blocked or asked
+
+The previous large redesign branch:
+
+`feature/printer-card-redesign`
+
+was abandoned because it changed too much at once.
+
+Do not resume it or copy it wholesale.
+
+Active clean restart:
+
+`feature/printer-card-redesign-v2`
+
+### GitHub CI is the normal code validation gate
+
+Do not ask the user to rerun the same lint/typecheck/focused tests on Ninja when GitHub CI already ran them.
+
+Use Ninja only when a real local Docker build, deployment, runtime inspection, or visual/functional printer test is needed.
+
+### Terminal style
+
+When user commands are needed:
+
+- one short robust block
+- clearly say if it runs on Ninja
+- use `GIT_PAGER=cat` or `git --no-pager`
+- avoid giant pasted scripts
+- avoid fragile escaping
+
+## Pending GitHub-first Docker deployment direction
+
+Concept agreed, not implemented:
+
+1. code changes land in the GitHub fork
+2. GitHub Actions tests
+3. GitHub Actions builds amd64 + arm64 image
+4. publish to user's GHCR
+5. publish moving `alex-custom` image tag plus immutable version tags
+6. Ninja pulls the image and restarts the customized Compose service
+
+Possible registry direction:
+
+`ghcr.io/thecuriousprocrastinator/bambuddy`
+
+Constraints:
+
+- preserve the customized parent Compose file
+- only change the Bambuddy image reference when migration is ready
+- do not replace Compose with the stock repository file
+- this is pending architecture, not current deployment behavior
+
+Keep this decision in future handoffs until implemented or abandoned.
+
+## Failed / misleading approaches to avoid
+
+### Big redesign branch
+
+Do not resume:
+
+`feature/printer-card-redesign`
+
+The redesign is now incremental.
+
+### Broad PrintersPage refactor
+
+Do not refactor the entire giant page before the visual design is stable.
+
+UI and printer mutations are deeply mixed.
+
+### Full frontend suite after every tiny visual commit
+
+Too slow for every step.
+
+Use focused PR CI for each small slice.
+
+Run the full suite at meaningful milestones and before merge/release.
+
+### Duplicate local CI
+
+Do not ask the user to repeat GitHub CI locally without a distinct reason.
+
+### Giant pasted scripts
+
+Avoid large Python/base64/install blocks in the user's shell.
+
+### Permanent F-code stickiness
+
+Do not replace material+color reconnect continuity with unconditional stickiness.
+
+### Numeric SQLite ID assumptions
+
+SQLite can reuse deleted IDs.
+
+Tests should validate semantic assignment state, not numeric ID disappearance.
+
+### Slot reassignment during inventory undo
+
+Intentionally excluded for print safety.
+
+Do not add casually.
+
+### Inventory undo as a health check
+
+Unsafe because it mutates state.
+
+### Casual `npm audit fix`
+
+Existing dependency vulnerabilities are separate dependency work.
+
+Do not mix dependency upgrades into the printer-card redesign.
+
+## Important debugging findings
+
+- `PrintersPage.tsx` is large enough that Babel may report deoptimized code generation during lint.
+- lint can take noticeable time even for tiny changes
+- prep initially failed lint because `isRedesignedCard` was introduced before use
+- focused CI uses explicit Vitest file paths for predictable selection
+- humidity regression test must wait for async status rendering and use an all-elements query because the fixture contains multiple AMS humidity labels
+- S uses the compact legacy card path and does not render the FILAMENTS/STATUS divider rows; XL is the correct legacy expanded regression target
+- `CoverImage` applies sizing classes to its wrapper div; the inner img is always `w-full h-full`, so current-job size regressions must assert the wrapper
+- printer controls render after async status data, so action-hierarchy regressions must wait for `printer-controls-section` rather than assuming the card shell means controls are ready
+- AMS JSX was extracted specifically to make the next move a tiny diff
+- source/UI mismatch may be a stale Docker image rather than source code
+- the September 27 Step 8 mismatch was confirmed to be a stale local Docker image: source and GitHub CI were correct, but the running container had not been rebuilt
+- a Git pull does not affect the live UI because the container has no source bind mount
+- the customized parent Compose currently points build context at a parent directory with no Dockerfile; build the local image from the source checkout, then recreate the Compose service
+- when verifying a rebuild, compare the running container image ID to the rebuilt image ID and confirm the served Vite asset contains an expected current-source marker
+- verify live container/source before editing to fix a visual mismatch
+
+## Open / deferred custom-fork validation
+
+Not active redesign work, but useful context:
+
+- full browser undo/redo round trip for inventory merge remains useful
+- real backend/container restart confirming F-code reconnect persistence remains useful
+- exhaustive K-profile/preset collision restoration is not complete
+- auth-specific undo-stack coverage could improve
+- duplicate merge error-toast UX is not fully polished
+
+Do not mix these into the printer-card redesign unless a real regression appears.
+
+## Remaining printer-card redesign backlog
+
+None for the approved M/L redesign. Steps 1-10 are complete.
+
+Do not continue polishing or refactoring the printer cards unless the user identifies a concrete regression or starts a new design task.
+
+## Exact next development task
+
+There is no active redesign implementation task.
+
+PR #2 remains open and draft on `feature/printer-card-redesign-v2` with base `alex-custom`. Merge, version bump, tag, or release are separate actions and must not be performed unless explicitly requested.
+
+Deferred custom-fork validation items listed above remain separate backlog and should not be mixed into a release/merge unless the user asks.
+
+## Local Ninja command when visual testing is actually needed
+
+Run on Ninja only when a real local deployment/runtime test is needed.
+
+Verified source sync + rebuild/recreate flow as of the final Step 10 validation:
+
+```bash
+cd "/Users/ninja/docker/bambuddy/.bambuddy-custom-v1.2.5.5" || exit 1
+set -e
+export GIT_PAGER=cat
+
+git fetch origin
+git switch feature/printer-card-redesign-v2
+git pull --ff-only origin feature/printer-card-redesign-v2
+
+docker build -t bambuddy-local:1.2.5.5-fnote .
+
+cd "/Users/ninja/docker/bambuddy" || exit 1
+docker compose up -d --no-build --force-recreate bambuddy
+```
+
+After recreation, verify `http://127.0.0.1:8001/health` and the actual served UI.
+
+Do not automatically repeat lint/tests on Ninja when GitHub CI already passed them.
+
+If the parent Compose build configuration changes, re-verify the build path instead of assuming this workaround remains necessary.
+
+## Handoff maintenance rule
+
+Every meaningful future development commit on the custom fork must update this file with enough current context for a new ChatGPT session to continue without prior conversation history.
+
+Update this handoff when a commit changes:
+
+- printer-card implementation
+- custom backend behavior
+- F-code behavior
+- undo/redo behavior
+- architecture
+- branch/PR state
+- version/release state
+- CI strategy
+- deployment strategy
+- debugging findings
+- validation status
+- known issues
+- exact next task
+
+Keep the handoff current-state focused.
+
+Do not turn it into a chronological transcript.
+
+## Prompt for the next ChatGPT session
+
+Read the full handoff first.
+
+Treat it as historical context, but verify the current GitHub repository, `alex-custom`, `feature/printer-card-redesign-v2`, PR #2, HEAD commit, CI status, version, and relevant source before changing anything.
+
+Never guess about implementation details that can be inspected.
+
+Preserve all existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, and MQTT-derived behavior.
+
+The approved M/L printer-card redesign is complete and validated through `ea9d13ae`. Verify the current repo/branch/PR state before any new work. PR #2 is still draft and based on `alex-custom`. Do not make more redesign changes unless the user identifies a regression or starts a new task. Do not merge, version-bump, tag, or release unless explicitly requested. Preserve the existing custom inventory, undo/redo, F-code reconnect, printer, AMS, permissions, MQTT-derived behavior, and the validated M/L composition.
