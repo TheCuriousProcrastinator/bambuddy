@@ -17,17 +17,25 @@ The fork adds custom behavior on top of upstream Bambuddy, including:
 
 The current development phase is the **M/L printer-card redesign**.
 
-### Interim checkpoint - September 27, 2026
+### Validated Step 8 checkpoint - September 27, 2026
 
-The safe pre-Step-6 checkpoint was committed as `57978c590d9b4f0e0c9e9953f187f150258c7b88`.
+The active feature branch is manually and automatically validated through Step 8 at functional HEAD:
 
-That documentation-only checkpoint was fully green:
+`3789af8b4515832125ba4ba239d58f7044a319df`
+
+Verified at that checkpoint:
 
 - Alex Custom PR CI: success
 - Security Audit: success
 - PR #2 remained open, draft, and mergeable
-- Ninja source checkout had been synced through functional HEAD `f811b071`
-- current Docker/runtime UI had not been rebuilt or visually validated from this redesign branch
+- Ninja source checkout was synced to `3789af8`
+- the custom Docker image was rebuilt from that checkout
+- `http://127.0.0.1:8001/health` returned `{"status":"healthy"}`
+- the running container used the newly built image
+- the served Vite bundle contained the Step 8 controls marker and matched the bundle referenced by the live root page
+- Alex manually verified the redesigned M/L P1S + AMS layout in the live UI
+
+The manual verification was visual/layout validation only. It does not replace the final Step 10 functional/manual regression pass.
 
 This redesign must remain visual and incremental. Preserve printer controls, AMS interactions, inventory integration, permissions, MQTT-derived state, and existing workflows.
 
@@ -42,17 +50,18 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - PR base: `alex-custom`
 - PR head: `feature/printer-card-redesign-v2`
 
-Verified immediately before the Step 8 implementation commit:
+Verified for the Step 8 release checkpoint before this handoff-only commit:
 
 - `main`: `9e9c08ba2cc08bf1e746ed98bef2b46b7bedea02`
 - `alex-custom`: `4008f20c99ed26b8893c1f3bed9ca88b481d75f2`
-- feature HEAD: `47a9ca2baad9e2272f6cee55e9b0a0d64e8fdfa9`
-- feature branch: 19 commits ahead and 0 behind `alex-custom`
+- feature HEAD: `3789af8b4515832125ba4ba239d58f7044a319df`
+- feature branch: 21 commits ahead and 0 behind `alex-custom`
 - PR #2: open, draft, mergeable
-- Alex Custom PR CI for `47a9ca2`: success
-- Security Audit for `47a9ca2`: success
+- Alex Custom PR CI for `3789af8`: success
+- Security Audit for `3789af8`: success
+- live Ninja Docker/UI visual validation through Step 8: passed
 
-The Step 8 commit advances the feature branch by one additional commit. Always verify the actual current HEAD before changing anything.
+This release-checkpoint commit updates documentation only. Always verify the actual current HEAD before changing anything.
 
 ### Important branch rule
 
@@ -100,11 +109,39 @@ Historical verified local deployment:
 
 The checkout directory name is stale. Source version is 1.2.5.6.
 
-The Ninja source checkout was explicitly synced by the user through functional HEAD `f811b071`.
+The Ninja source checkout was explicitly synced by the user through functional HEAD `3789af8`.
 
-No Docker rebuild/restart or visual runtime validation of the current printer-card redesign branch has been verified yet.
+The live Docker runtime was rebuilt and visually validated against that checkout on September 27, 2026.
 
-Treat the live Bambuddy runtime as **not yet validated against the redesign branch**, even though the source checkout is current through `f811b071`.
+Verified runtime details:
+
+- Compose working directory: `/Users/ninja/docker/bambuddy`
+- Compose files:
+  - `docker-compose.yml`
+  - `docker-compose.override.yml`
+- running image name: `bambuddy-local:1.2.5.5-fnote`
+- validated image ID: `sha256:6991f505a0b4e959de0faac00323542d42c26aea85bd714bfc8e568c1914645e`
+- data volume: `bambuddy_bambuddy_data -> /app/data`
+- logs volume: `bambuddy_bambuddy_logs -> /app/logs`
+- no source bind mount is present
+- health endpoint returned healthy
+- built/served JS asset at validation time: `/assets/index-c0xAOXbm.js`
+- that asset contained `printer-controls-trigger`, `speed-control`, and the Step 8 quick-controls width class
+
+Important local-build quirk:
+
+The customized parent Compose resolves `build.context` to `/Users/ninja/docker/bambuddy` and expects `Dockerfile` there, but the parent directory currently has no Dockerfile. The actual application Dockerfile lives in:
+
+`/Users/ninja/docker/bambuddy/.bambuddy-custom-v1.2.5.5/Dockerfile`
+
+Therefore a Git pull alone does not change the live UI, and `docker compose up -d --build` from the parent directory is not currently a reliable rebuild path.
+
+The verified working rebuild path is:
+
+1. build `bambuddy-local:1.2.5.5-fnote` directly from the source checkout
+2. recreate the parent Compose service with `--no-build --force-recreate`
+
+The named data/log volumes remain intact across this image recreation.
 
 ### Compose rule
 
@@ -545,9 +582,9 @@ npm run check:i18n
 npm run build
 ```
 
-### Latest validated HEAD before Step 8
+### Latest validated functional HEAD through Step 8
 
-For `47a9ca2baad9e2272f6cee55e9b0a0d64e8fdfa9`:
+For `3789af8b4515832125ba4ba239d58f7044a319df`:
 
 - Alex Custom PR CI: success
 - Frontend validation: success
@@ -555,6 +592,8 @@ For `47a9ca2baad9e2272f6cee55e9b0a0d64e8fdfa9`:
 - type check: success
 - focused printer-card regression tests: success
 - production frontend build: success
+- live Ninja Docker health check: success
+- manual redesigned M/L P1S + AMS visual validation: success
 
 Security Audit: success, including:
 
@@ -710,6 +749,10 @@ Do not mix dependency upgrades into the printer-card redesign.
 - printer controls render after async status data, so action-hierarchy regressions must wait for `printer-controls-section` rather than assuming the card shell means controls are ready
 - AMS JSX was extracted specifically to make the next move a tiny diff
 - source/UI mismatch may be a stale Docker image rather than source code
+- the September 27 Step 8 mismatch was confirmed to be a stale local Docker image: source and GitHub CI were correct, but the running container had not been rebuilt
+- a Git pull does not affect the live UI because the container has no source bind mount
+- the customized parent Compose currently points build context at a parent directory with no Dockerfile; build the local image from the source checkout, then recreate the Compose service
+- when verifying a rebuild, compare the running container image ID to the rebuilt image ID and confirm the served Vite asset contains an expected current-source marker
 - verify live container/source before editing to fix a visual mismatch
 
 ## Open / deferred custom-fork validation
@@ -767,7 +810,9 @@ Ninja visual testing may be useful after this layout step, but do not guess depl
 
 ## Local Ninja command when visual testing is actually needed
 
-Run on Ninja only when a real local deployment/runtime test is needed:
+Run on Ninja only when a real local deployment/runtime test is needed.
+
+Verified source sync + rebuild/recreate flow as of the Step 8 checkpoint:
 
 ```bash
 cd "/Users/ninja/docker/bambuddy/.bambuddy-custom-v1.2.5.5" || exit 1
@@ -777,11 +822,18 @@ export GIT_PAGER=cat
 git fetch origin
 git switch feature/printer-card-redesign-v2
 git pull --ff-only origin feature/printer-card-redesign-v2
+
+docker build -t bambuddy-local:1.2.5.5-fnote .
+
+cd "/Users/ninja/docker/bambuddy" || exit 1
+docker compose up -d --no-build --force-recreate bambuddy
 ```
 
-Do not automatically follow this with redundant lint/tests if GitHub CI already passed them.
+After recreation, verify `http://127.0.0.1:8001/health` and the actual served UI.
 
-Build/deploy commands must be based on the then-current verified customized Compose/runtime state, not guessed from historical commands.
+Do not automatically repeat lint/tests on Ninja when GitHub CI already passed them.
+
+If the parent Compose build configuration changes, re-verify the build path instead of assuming this workaround remains necessary.
 
 ## Handoff maintenance rule
 
