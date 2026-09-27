@@ -2193,6 +2193,7 @@ function PrinterCard({
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState<number | null>(null);
+  const [showQuickControls, setShowQuickControls] = useState(false);
   const [showAirductMenu, setShowAirductMenu] = useState<number | null>(null);
   const [showBedJogMenu, setShowBedJogMenu] = useState<number | null>(null);
   const [statusControlMenu, setStatusControlMenu] = useState<string | null>(null);
@@ -6223,8 +6224,37 @@ function PrinterCard({
                   )}
 
                   <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
-                    {/* Left: Secondary controls */}
-                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    {/* Left: Secondary controls. M/L put these behind one
+                        deliberate entry point; the controls themselves are unchanged. */}
+                    <div className="relative flex min-w-0 items-center gap-2">
+                      {isRedesignedCard && (
+                        <>
+                          <button
+                            type="button"
+                            data-testid="printer-controls-trigger"
+                            onClick={() => setShowQuickControls((open) => !open)}
+                            className="flex h-8 items-center gap-2 rounded-lg bg-bambu-dark-tertiary px-3 text-xs font-medium text-white transition-colors hover:bg-bambu-gray-dark"
+                            aria-expanded={showQuickControls}
+                            title={t('printers.controls')}
+                          >
+                            <SlidersHorizontal className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
+                            {t('printers.controls')}
+                          </button>
+                          {showQuickControls && (
+                            <button
+                              type="button"
+                              aria-label={t('common.close')}
+                              className="fixed inset-0 z-40 cursor-default"
+                              onClick={() => setShowQuickControls(false)}
+                            />
+                          )}
+                        </>
+                      )}
+                      <div
+                        className={isRedesignedCard
+                          ? `${showQuickControls ? 'flex' : 'hidden'} absolute bottom-full left-0 z-50 mb-2 w-[min(24rem,calc(100vw-2rem))] flex-wrap items-center gap-2 rounded-xl border border-bambu-dark-tertiary bg-bambu-dark-secondary p-2.5 shadow-2xl`
+                          : 'flex flex-wrap items-center gap-2 min-w-0'}
+                      >
                       <button
                         onClick={() => chamberLightMutation.mutate(!status.chamber_light)}
                         disabled={!status.connected || chamberLightMutation.isPending || !hasPermission('printers:control')}
@@ -6540,6 +6570,7 @@ function PrinterCard({
                         </div>
                       ))()}
 
+                      </div>
                     </div>
 
                     {/* Right: Print Control Buttons */}
