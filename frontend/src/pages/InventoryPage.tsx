@@ -688,7 +688,10 @@ const columnSortValues: Record<
   gross: (s) => Math.max(0, s.label_weight - s.weight_used) + s.core_weight,
   used: (s) => s.weight_used,
   remaining: (s) => s.label_weight > 0 ? Math.max(0, s.label_weight - s.weight_used) / s.label_weight : 0,
-  note: (s) => (s.note || '').toLowerCase(),
+  note: (s) => {
+    const legacyCode = /^F\d{4}$/i.test(s.note?.trim() || '') ? s.note!.trim().toUpperCase() : '';
+    return (s.stock_code || legacyCode).toLowerCase();
+  },
   data_origin: (s) => (s.data_origin || '').toLowerCase(),
   tag_type: (s) => (s.tag_type || '').toLowerCase(),
   stock: (s) => s.slicer_filament ? 1 : 0,

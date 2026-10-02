@@ -45,7 +45,7 @@ This redesign must remain visual and incremental. Preserve printer controls, AMS
 - Visibility: public fork of `maziggy/bambuddy`
 - Default branch: `main`
 - Custom stable branch: `alex-custom`
-- Active development branch: none
+- Active development branch: `fix/inventory-id-sort`
 - Printer-card feature branch: `feature/printer-card-redesign-v2` (historical/completed)
 - PR #2 - **Redesign M/L printer cards incrementally** - merged into `alex-custom`
 - PR merge commit: `a645ca6b78a1190e2a9e26dc1ebc14a2ad2fe6c1`
@@ -715,11 +715,15 @@ Active clean restart:
 
 `feature/printer-card-redesign-v2`
 
-### GitHub CI is the normal code validation gate
+### Local validation is the normal code validation gate
 
-Do not ask the user to rerun the same lint/typecheck/focused tests on Ninja when GitHub CI already ran them.
+The exact change must pass validation in the real Ninja checkout before any commit or push.
 
-Use Ninja only when a real local Docker build, deployment, runtime inspection, or visual/functional printer test is needed.
+Ordinary development pushes and pull requests must not automatically run GitHub Actions. GitHub Actions are reserved for explicit `workflow_dispatch` runs and release/version tags.
+
+Some inherited workflows still have broader automatic triggers. Until those are corrected in a separate validated change, ordinary development commits use `[skip ci]` so development pushes do not start push-triggered Actions.
+
+Use Ninja for build, tests, Docker rebuild, runtime inspection, and manual UI/functional validation.
 
 ### Terminal style
 
@@ -851,15 +855,25 @@ Do not continue polishing or refactoring the printer cards unless the user ident
 
 ## Exact next development task
 
-There is no active redesign implementation task.
+The Inventory ID sorting bug is fixed and locally validated on Ninja.
 
-PR #2 has been merged into `alex-custom` at merge commit `a645ca6b78a1190e2a9e26dc1ebc14a2ad2fe6c1`.
+Validated behavior:
 
-The printer-card redesign project is finished and is the basis of release `v1.2.5.7`.
+- the visible ID column sorts by the displayed `stock_code`
+- legacy `F####` values stored in `note` remain supported as fallback
+- unrelated note text no longer controls ID sorting
+- focused Inventory regression tests passed: 3/3
+- ESLint for the touched files passed
+- production frontend build passed
+- Docker rebuild and container recreation passed
+- `/health` returned healthy
+- Alex manually confirmed ID sorting works in the live UI
 
-After the lightweight `v1.2.5.7` tag is verified on the release commit, there is no active development task. Branch deletion or a new development task are separate actions and must not be performed unless explicitly requested.
+Current development branch: `fix/inventory-id-sort`.
 
-Deferred custom-fork validation items listed above remain separate backlog.
+This remains a development change on top of `v1.2.5.7`. Do not merge, version-bump, tag, or release unless explicitly requested.
+
+There is no active implementation task after this fix. Await the user's next instruction.
 
 ## Local Ninja command when visual testing is actually needed
 

@@ -158,4 +158,47 @@ describe('InventoryPage inline aggregate stock editing', () => {
     expect(within(row!).queryByText('real note stays separate')).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'ID' })).toBeInTheDocument();
   });
+
+  it('sorts the ID column by the displayed stock code', async () => {
+    const user = userEvent.setup();
+    spools = [
+      {
+        ...BASE_SPOOL,
+        id: 21,
+        brand: 'Late ID',
+        stock_code: 'F0015',
+        note: 'aaa',
+      },
+      {
+        ...BASE_SPOOL,
+        id: 22,
+        brand: 'First ID',
+        stock_code: 'F0004',
+        note: 'zzz',
+      },
+      {
+        ...BASE_SPOOL,
+        id: 23,
+        brand: 'Middle ID',
+        stock_code: 'F0009',
+        note: null,
+      },
+    ];
+
+    render(<InventoryPageRouter />);
+    await screen.findByText('F0015');
+
+    await user.click(screen.getByRole('columnheader', { name: 'ID' }));
+
+    const rowIndexOf = (code: string) =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .findIndex((row) => within(row).queryByText(code));
+
+    await waitFor(() => {
+      expect(['F0004', 'F0009', 'F0015'].map(rowIndexOf)).toEqual([0, 1, 2]);
+    });
+  });
+
 });
