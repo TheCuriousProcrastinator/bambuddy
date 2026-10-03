@@ -24,9 +24,6 @@ name: Windows Installer
 # the signed-tag path share one set of alias/upload/attach steps.
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       sign:
@@ -43,6 +40,7 @@ on:
 # through the API (and lets download-artifact do the same in `publish`). Declaring
 # a permissions block at all drops every scope we don't name to `none`, so the
 # signing step fails to fetch the artifact without it.
+
 permissions:
   contents: write
   actions: read

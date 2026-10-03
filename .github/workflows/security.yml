@@ -1,29 +1,6 @@
 name: Security Audit
 
 on:
-  schedule:
-    # Run weekly on Monday at 6:00 UTC
-    - cron: '0 6 * * 1'
-  push:
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'spoolbuddy/**'
-      - 'Dockerfile'
-      - 'docker-compose*.yml'
-      - 'requirements.txt'
-      - 'frontend/package*.json'
-      - '.github/workflows/security.yml'
-  pull_request:
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'spoolbuddy/**'
-      - 'Dockerfile'
-      - 'docker-compose*.yml'
-      - 'requirements.txt'
-      - 'frontend/package*.json'
-      - '.github/workflows/security.yml'
   workflow_dispatch:
     # Allow manual trigger
 

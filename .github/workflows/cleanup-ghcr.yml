@@ -10,8 +10,6 @@ name: Cleanup GHCR untagged images
 # versions of user-owned packages (only org-owned).
 
 on:
-  schedule:
-    - cron: '0 3 * * 0'  # Sundays at 03:00 UTC
   workflow_dispatch:
     inputs:
       dry_run:
@@ -23,6 +21,7 @@ on:
 # and never reads/writes via the default GITHUB_TOKEN. Strip every permission
 # from the GITHUB_TOKEN so a stolen workflow run can't reach the repo at all
 # — least privilege per CodeQL `actions/missing-workflow-permissions`.
+
 permissions: {}
 
 jobs:

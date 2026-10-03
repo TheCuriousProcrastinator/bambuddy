@@ -16,8 +16,7 @@
 name: Auto-label Issue Area
 
 on:
-  issues:
-    types: [opened, edited]
+  workflow_dispatch:
 
 permissions:
   issues: write
