@@ -1,3 +1,17 @@
+<!-- VIBE-CURRENT-STATE:START -->
+## Current repository facts (generated, authoritative only for the facts listed)
+
+- Repository: `TheCuriousProcrastinator/bambuddy`; local working branch: `main`.
+- Version data below is read from the **Git index** (the files staged for commit).
+- Source `pyproject.toml`: version `0.1.5`.
+- Source `frontend/package.json`: version `0.0.0`.
+- GitHub publication: No published GitHub release returned by the API. Other distribution channels are **unverified**.
+- This section does **not** establish local build success, manual QA, App Store/Chrome Web Store approval, notarization, live website deployment, or release-asset integrity.
+- The narrative below maintains architecture, decisions, issues and test evidence. Its older status and version claims are **historical** unless explicitly reconciled with this section.
+- Before executable changes, inspect the actual checkout and validate the **exact files** on the real Mac. No automatic GitHub Actions.
+
+<!-- VIBE-CURRENT-STATE:END -->
+
 # Bambuddy - Development Handoff
 
 ## Publish/release command - standing authorization (2026-10-13)
