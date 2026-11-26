@@ -97,17 +97,8 @@ function formatDuration(value: number, type: 'hours' | 'days', t?: TFunction): s
     if (months === 1) return t ? t('maintenance.month') : '1 month';
     return t ? t('maintenance.months', { count: months }) : `${months} months`;
   } else {
-    // Print hours - convert to readable units
-    if (value < 1) return `${Math.round(value * 60)}m`;
-    if (value < 24) return `${value < 10 ? value.toFixed(1) : Math.round(value)}h`;
-    // 24+ hours: show as days of print time
-    const days = value / 24;
-    if (days < 7) return `${days < 2 ? days.toFixed(1) : Math.round(days)}d`;
-    // 7+ days: show as weeks of print time
-    const weeks = days / 7;
-    if (weeks < 12) return `${weeks < 2 ? weeks.toFixed(1) : Math.round(weeks)}w`;
-    // 12+ weeks: show as months of print time
-    return `${Math.round(weeks / 4)}mo`;
+    // Always display active print time in hours.
+    return `${value < 1 ? value.toFixed(2) : value < 10 ? value.toFixed(1) : Math.round(value)}h`;
   }
 }
 

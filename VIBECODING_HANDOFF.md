@@ -1,5 +1,58 @@
 # VIBECODING_HANDOFF.md
 
+## Current checkpoint - November 26, 2026
+
+This checkpoint supersedes older development status below.
+
+- Active branch: `fix/inventory-id-sort`
+- Application version: 1.2.5.7
+- Inventory ID sorting fix preserved.
+- Maintenance countdowns display active printing hours only
+  for hour-based intervals, without conversion to days or weeks.
+- Calendar-based formatting remains unchanged.
+- Frontend production build passed.
+- Maintenance and inventory regression tests: 6/6 passed.
+- Ninja Docker rebuild and health check passed.
+- Manual maintenance UI validation passed.
+
+### Local P1S maintenance configuration
+
+All nine reminders use active printing hours:
+
+- Build plate: 25h
+- Cooling fans: 50h
+- Extruder gears: 50h
+- Nozzle/hotend: 100h
+- Carbon rods: 100h
+- Y/Z steel rods: 100h
+- Belt tension: 200h
+- Z lead screws: 300h
+- PTFE tube: 500h
+
+Complete maintenance recorded November 26, 2026.
+Intervals are practical estimates, not manufacturer requirements.
+
+### Next development task
+
+Integrate upstream Bambuddy 1.3.2 in a separate branch.
+
+Mandatory improvements:
+- SQLite performance
+- Filament consumption accuracy
+- AMS and filament matching
+- Security and permissions
+- Multiple print runs per archive
+
+Preserve all custom functionality, including printer cards,
+F-code inventory, undo/redo, reconnect persistence,
+inventory sorting and maintenance hour formatting.
+
+Validate locally using an isolated database copy.
+Do not replace production until validation passes.
+GitHub Actions are manual-only.
+Do not use the built-in upstream update banner.
+
+
 ## Project
 
 **Name:** Bambuddy custom fork
