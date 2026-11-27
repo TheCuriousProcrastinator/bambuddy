@@ -1,29 +1,6 @@
 name: Security Audit
 
 on:
-  schedule:
-    # Run weekly on Monday at 6:00 UTC
-    - cron: '0 6 * * 1'
-  push:
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'spoolbuddy/**'
-      - 'Dockerfile'
-      - 'docker-compose*.yml'
-      - 'requirements.txt'
-      - 'frontend/package*.json'
-      - '.github/workflows/security.yml'
-  pull_request:
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'spoolbuddy/**'
-      - 'Dockerfile'
-      - 'docker-compose*.yml'
-      - 'requirements.txt'
-      - 'frontend/package*.json'
-      - '.github/workflows/security.yml'
   workflow_dispatch:
     # Allow manual trigger
 
@@ -141,7 +118,7 @@ jobs:
           # setuptools that trips pip-audit (PYSEC-2026-3447, fixed in 83.0.0).
           # A fix exists, so we upgrade rather than --ignore-vuln.
           python -m pip install --upgrade pip setuptools
-          pip install -r requirements.txt
+          pip install -r requirements.lock
           pip install pip-audit
 
       - name: Run pip-audit

@@ -1,9 +1,6 @@
 name: Alex Custom PR CI
 
 on:
-  pull_request:
-    branches:
-      - alex-custom
   workflow_dispatch:
 
 permissions:

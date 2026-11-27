@@ -220,13 +220,18 @@ class TestProjectUrlAndCoverImage:
         assert response.status_code == 400
 
     @pytest.mark.integration
-    def test_cover_image_get_uses_stream_token_gate(self):
-        """Regression guard: GET /projects/{id}/cover-image MUST be gated by
-        ``RequireCameraStreamTokenIfAuthEnabled`` (accepts ``?token=…`` query
-        string) rather than by the bearer-token gate, because browsers can't
-        attach an ``Authorization`` header to ``<img src>`` requests. Swapping
-        back to the bearer gate would silently 401 every cover image when auth
-        is enabled."""
+    def test_cover_image_get_uses_query_token_gate(self):
+        """Regression guard: GET /projects/{id}/cover-image MUST be gated by a
+        dependency that accepts ``?token=…`` in the query string rather than by
+        a header-only bearer gate, because browsers can't attach an
+        ``Authorization`` header to ``<img src>`` requests. Swapping to a
+        header-only gate would silently 401 every cover image when auth is
+        enabled.
+
+        The token type changed in #3025 -- the route took the camera-stream
+        token until then, which made ``camera:view`` a prerequisite for seeing
+        a project cover -- so this pins the media gate. What it is really
+        asserting is unchanged: the credential has to fit in a URL."""
         from fastapi.routing import APIRoute
 
         from backend.app.api.routes.projects import router
@@ -242,21 +247,20 @@ class TestProjectUrlAndCoverImage:
 
         assert cover_get is not None, "GET cover-image route missing"
 
-        # The route's dependant tree includes a Depends(require_camera_stream_token_if_auth_enabled())
+        # The route's dependant tree includes a Depends(require_media_token_permission(...))
         # — its `call` is the inner check function returned by that factory.
         # Walk the dependant tree and assert one of the dependencies came from
-        # the stream-token factory, NOT from require_permission_if_auth_enabled.
-        from backend.app.core.auth import (
-            require_camera_stream_token_if_auth_enabled,
-        )
+        # the media-token factory, NOT from require_permission_if_auth_enabled.
+        from backend.app.core.auth import require_media_token_permission
+        from backend.app.core.permissions import Permission
 
         # The factory returns a fresh closure each call; the most reliable
         # signature is the qualified name of the function in the closure chain.
-        expected_qualname = require_camera_stream_token_if_auth_enabled().__qualname__
+        expected_qualname = require_media_token_permission(Permission.PROJECTS_READ).__qualname__
 
         gate_qualnames = [dep.call.__qualname__ for dep in cover_get.dependant.dependencies if dep.call]
         assert expected_qualname in gate_qualnames, (
-            f"GET cover-image route is not gated by RequireCameraStreamTokenIfAuthEnabled. Found: {gate_qualnames}"
+            f"GET cover-image route is not gated by a media-token dependency. Found: {gate_qualnames}"
         )
 
 
@@ -2132,3 +2136,124 @@ class TestSubProjectRollup:
 
         assert "Wing" not in rows
         assert rows["Airframe"]["child_count"] == 1
+
+
+class TestTimelineQueueItems:
+    """Queued and printing jobs appear in the project timeline under their name.
+
+    Pre-fix the timeline read ``item.print_name``, which a queue item does not
+    have: any pending or printing job made the whole timeline answer 500, so
+    the project page showed no events at all.
+    """
+
+    @staticmethod
+    async def _timeline(async_client: AsyncClient, project_id: int) -> list[dict]:
+        response = await async_client.get(f"/api/v1/projects/{project_id}/timeline")
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    @staticmethod
+    async def _project(db_session):
+        from backend.app.models.project import Project
+
+        project = Project(name="Timeline")
+        db_session.add(project)
+        await db_session.commit()
+        return project.id
+
+    @staticmethod
+    async def _queue(db_session, project_id: int, status: str, **source) -> None:
+        from backend.app.models.print_queue import PrintQueueItem
+
+        db_session.add(PrintQueueItem(project_id=project_id, status=status, **source))
+        await db_session.commit()
+
+    @staticmethod
+    async def _library_file(db_session, filename: str, print_name: str | None):
+        from backend.app.models.library import LibraryFile
+
+        lib = LibraryFile(
+            filename=filename,
+            file_path=f"library/{filename}",
+            file_type="3mf",
+            file_size=1,
+            file_metadata={"print_name": print_name} if print_name else None,
+        )
+        db_session.add(lib)
+        await db_session.commit()
+        return lib.id
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_pending_and_printing_jobs_carry_their_name(
+        self, async_client: AsyncClient, db_session, printer_factory, archive_factory
+    ):
+        project_id = await self._project(db_session)
+        printer = await printer_factory()
+        archive = await archive_factory(printer.id, print_name="Bracket", with_run=False)
+        lib_id = await self._library_file(db_session, "hinge_v2.3mf", "Hinge")
+        await self._queue(db_session, project_id, "printing", archive_id=archive.id, printer_id=printer.id)
+        await self._queue(db_session, project_id, "pending", library_file_id=lib_id)
+
+        events = {e["event_type"]: e for e in await self._timeline(async_client, project_id)}
+
+        assert events["print_started"]["description"] == "Bracket"
+        assert events["queued"]["description"] == "Hinge"
+        assert "project_created" in events
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_falls_back_to_the_file_name(self, async_client: AsyncClient, db_session):
+        project_id = await self._project(db_session)
+        lib_id = await self._library_file(db_session, "hinge_v2.3mf", None)
+        await self._queue(db_session, project_id, "pending", library_file_id=lib_id)
+
+        (queued,) = [e for e in await self._timeline(async_client, project_id) if e["event_type"] == "queued"]
+
+        assert queued["description"] == "hinge_v2.3mf"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_a_deleted_archive_lends_no_name(
+        self, async_client: AsyncClient, db_session, printer_factory, archive_factory
+    ):
+        from datetime import datetime, timezone
+
+        project_id = await self._project(db_session)
+        printer = await printer_factory()
+        archive = await archive_factory(printer.id, print_name="Deleted", with_run=False)
+        archive_id = archive.id
+        archive.deleted_at = datetime.now(timezone.utc)
+        await db_session.commit()
+        await self._queue(db_session, project_id, "pending", archive_id=archive_id, printer_id=printer.id)
+
+        (queued,) = [e for e in await self._timeline(async_client, project_id) if e["event_type"] == "queued"]
+
+        assert queued["description"] is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_a_job_for_any_of_several_models_is_named_after_its_first_file(
+        self, async_client: AsyncClient, db_session
+    ):
+        """A cross-model job (#671) has no archive or library file until dispatch;
+        like the queue page, the timeline names it after the first candidate."""
+        from backend.app.models.print_queue import PrintQueueItem, PrintQueueVariant
+
+        project_id = await self._project(db_session)
+        first = await self._library_file(db_session, "bracket_h2s.3mf", "Bracket H2S")
+        second = await self._library_file(db_session, "bracket_h2c.3mf", "Bracket H2C")
+        item = PrintQueueItem(project_id=project_id, status="pending")
+        db_session.add(item)
+        await db_session.commit()
+        db_session.add_all(
+            [
+                PrintQueueVariant(queue_item_id=item.id, library_file_id=second, target_model="H2C", position=1),
+                PrintQueueVariant(queue_item_id=item.id, library_file_id=first, target_model="H2S", position=0),
+            ]
+        )
+        await db_session.commit()
+
+        (queued,) = [e for e in await self._timeline(async_client, project_id) if e["event_type"] == "queued"]
+
+        assert queued["description"] == "bracket_h2s.3mf"

@@ -38,6 +38,13 @@ class UserWallet(Base):
     """Per-user wallet balance.
 
     Balance updates are driven by wallet transactions.
+
+    No currency column: an install has exactly one currency, held in the
+    ``currency`` app setting, and nothing here converts between currencies. The
+    column that used to sit on this table recorded whatever was configured when
+    the row happened to be created, three of the four writers hardcoded "EUR"
+    into it, and the Finance page rendered what it found -- so an install set
+    to AUD reported euros (#3123).
     """
 
     __tablename__ = "user_wallets"
@@ -45,7 +52,6 @@ class UserWallet(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
     balance: Mapped[float] = mapped_column(Numeric(14, 2, asdecimal=False), default=0.0)
-    currency: Mapped[str] = mapped_column(String(3), default="EUR")
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     user: Mapped[User] = relationship()
@@ -127,7 +133,9 @@ class WalletTransaction(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # SET NULL, not CASCADE: a deleted user's entries stay in the ledger, or what
+    # they spent of a shared cost centre's budget would be freed again.
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     cost_center_id: Mapped[int | None] = mapped_column(
         ForeignKey("cost_centers.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -155,7 +163,7 @@ class WalletTransaction(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
-    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    user: Mapped[User | None] = relationship(foreign_keys=[user_id])
     cost_center: Mapped[CostCenter | None] = relationship()
     created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_user_id])
     print_archive: Mapped[PrintArchive | None] = relationship()

@@ -34,6 +34,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getCurrencySymbol } from '../utils/currency';
 import { eligibleParents } from '../utils/projectTree';
+import { useUiSettings } from '../hooks/useUiSettings';
 
 const PROJECT_COLORS = [
   '#ef4444', // red
@@ -242,7 +243,7 @@ export function ProjectModal({ project, onClose, onSave, isLoading, currencySymb
                 <div className="w-20 h-20 rounded bg-bambu-dark border border-bambu-dark-tertiary overflow-hidden flex items-center justify-center flex-shrink-0">
                   {coverImageFilename ? (
                     <img
-                      src={`${api.getProjectCoverImageUrl(project.id)}?v=${coverCacheKey}`}
+                      src={api.getProjectCoverImageUrl(project.id, coverCacheKey)}
                       alt={t('projects.coverImageAlt')}
                       className="w-full h-full object-cover"
                     />
@@ -952,10 +953,7 @@ export function ProjectsPage() {
     localStorage.setItem('projects-collapse-subprojects', String(next));
   };
 
-  const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: api.getSettings,
-  });
+  const { data: settings } = useUiSettings();
 
   const currencySymbol = getCurrencySymbol(settings?.currency || 'USD');
 

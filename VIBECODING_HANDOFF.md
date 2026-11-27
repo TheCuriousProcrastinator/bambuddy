@@ -1,3 +1,79 @@
+# Current release checkpoint - November 27, 2026
+
+This section supersedes all historical branch, version,
+CI, deployment and pending-task information below.
+
+## Current production release
+
+- Application version: 1.3.2
+- Custom release tag: v1.3.2-custom.1
+- Active branch: upgrade/upstream-1.3.2
+- Repository: TheCuriousProcrastinator/bambuddy
+- Upstream: maziggy/bambuddy v1.3.2
+- Upstream commit: b7d894b57c0a373f66dc0de49680865b02b3aae5
+- Previous custom checkpoint: 8ffad8048d23841f646e651836271ca597bae602
+- Production host: Ninja
+
+## Local validation
+
+- Frontend: 6043 tests passed across 442 files.
+- Backend: 20091 passed, 36 skipped, zero failures.
+- Production Docker image build passed.
+- Isolated production database migration passed.
+- SQLite integrity passed, zero foreign key violations.
+- All eight manual UI checks passed.
+- Production deployment and health checks passed.
+- User confirmed live printer validation passed.
+
+## Preserved custom functionality
+
+- F-code stock IDs and aggregate inventory.
+- Inventory sorting and inline stock editing.
+- Persistent inventory column preferences.
+- Persistent merge undo/redo and global shortcuts.
+- AMS material/color reconnect persistence.
+- Custom M/L printer card composition.
+- Maintenance countdowns in active print hours.
+- Custom finance features.
+
+## Deployment
+
+Production runs the exact locally validated candidate image,
+retagged as bambuddy-local:1.2.5.5-fnote to preserve Compose.
+
+- Checkout: /Users/ninja/docker/bambuddy/.bambuddy-custom-v1.2.5.5
+- Compose: /Users/ninja/docker/bambuddy
+- Container: bambuddy
+- Health: http://127.0.0.1:8001/health
+- Data volume: bambuddy_bambuddy_data
+- Production backup: /Users/ninja/Desktop/tmp/bambuddy-pre-132-20261127-070544
+- Rollback image: bambuddy-local:rollback-20261127-070544
+
+Do not replace the customized parent Compose configuration.
+Never start the old image against the migrated database
+without restoring the matching pre-upgrade data backup.
+
+## Development policy
+
+Use upgrade/upstream-1.3.2 as the current production baseline.
+Preserve previous branches and tags.
+All workflows on this branch are workflow_dispatch only.
+No automatic CI for development or releases.
+Validate every executable change locally before GitHub writes.
+Do not use the built-in upstream update mechanism.
+
+Release publication follows the fork's lightweight-tag
+convention. No separate binary distribution is required.
+
+No active implementation task. Await user instructions.
+
+---
+
+# Historical development records
+
+The following records describe earlier checkpoints and must
+not override the current release checkpoint above.
+
 # VIBECODING_HANDOFF.md
 
 ## Current checkpoint - November 26, 2026

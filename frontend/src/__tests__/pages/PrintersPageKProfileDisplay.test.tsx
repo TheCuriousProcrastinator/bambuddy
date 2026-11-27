@@ -286,7 +286,7 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
     server.use(
       http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
         ...mockPrinterStatus,
-        ams: [{ id: 1, tray: [{ id: 0, tray_type: 'ASA', tray_color: 'FFFFFFFF', k: 0 }] }],
+        ams: [{ id: 128, tray: [{ id: 0, tray_type: 'ASA', tray_color: 'FFFFFFFF', k: 0 }] }],
         vt_tray: [{ id: 254, tray_type: 'PLA', tray_color: '000000FF', k: 0 }],
       })),
     );
@@ -301,14 +301,12 @@ describe('PrintersPage - K-profile always-visible display (#2532)', () => {
   });
 
   it('shows the K-value on a loaded AMS-HT slot without hovering', async () => {
-    // AMS-HT units are identified by having exactly one tray in their
-    // `tray` array (vs. four for a standard AMS unit) — see the htAms
-    // filter in PrintersPage.tsx.
+    // AMS-HT units are identified by hardware IDs 128-135.
     server.use(
       http.get('/api/v1/printers/:id/status', () => HttpResponse.json({
         ...mockPrinterStatus,
         ams: [{
-          id: 1,
+          id: 128,
           tray: [{
             id: 0,
             tray_type: 'ASA',

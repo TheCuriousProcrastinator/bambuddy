@@ -186,6 +186,15 @@ export function FinancePage() {
     enabled: canReadOwn,
   });
 
+  // Currency comes from the install setting, like every other page. Read from
+  // /settings/ui-flags rather than /settings, which needs SETTINGS_READ that a
+  // cost_centers:read_own user does not have (#3023). The Layout already holds
+  // this query key, so this is served from cache.
+  const { data: uiFlags } = useQuery({
+    queryKey: ['ui-flags'],
+    queryFn: api.getUiFlags,
+  });
+
   const { data: transactionsResponse, isLoading: personalTxLoading } = useQuery({
     queryKey: ['finance', 'me', 'transactions', txLimit, txOffset],
     queryFn: () => api.getMyTransactions(txLimit, txOffset),
@@ -399,6 +408,12 @@ export function FinancePage() {
     createCostCenterMutation.mutate();
   };
 
+  // A private center is named after its owner and can't be renamed; the backend
+  // refuses the rename, which used to stop the budget from being saved (#3358).
+  const selectedEditCenterIsPrivate = (costCenters || []).some(
+    (c) => c.id === selectedEditCenterId && c.is_private,
+  );
+
   const handleSaveEditedCenter = async () => {
     if (selectedEditCenterId == null) {
       showToast(t('finance.selectCostCenter', 'Please select a cost center'), 'error');
@@ -412,7 +427,7 @@ export function FinancePage() {
     }
 
     try {
-      if (canUpdateCostCenters) {
+      if (canUpdateCostCenters && !selectedEditCenterIsPrivate) {
         await updateCostCenterMutation.mutateAsync({ costCenterId: selectedEditCenterId, name });
       }
       if (canUpdateBudgets) {
@@ -491,7 +506,8 @@ export function FinancePage() {
       transactionId: selectedEditTransactionId,
       data: {
         user_id: editTransactionUserId || undefined,
-        cost_center_id: editTransactionCostCenterId || undefined,
+        // null moves it to no cost center; left out, the backend keeps the old one.
+        cost_center_id: editTransactionCostCenterId || null,
         amount: amount ?? undefined,
         description: editTransactionDescription || undefined,
       },
@@ -583,7 +599,7 @@ export function FinancePage() {
     removeMemberMutation.mutate({ costCenterId: selectedManageCenterId, userId });
   };
 
-  const currency = wallet?.currency || 'EUR';
+  const currency = uiFlags?.currency || 'USD';
   const currencySymbol = getCurrencySymbol(currency);
 
   const sortedUsers = useMemo(() => {
@@ -639,7 +655,8 @@ export function FinancePage() {
   };
 
   const getPrivateOwnerLabel = (ownerUserId: number | null): string => {
-    if (ownerUserId == null) return t('finance.personal', 'Personal');
+    // Private centres are always created with an owner; none means they were deleted.
+    if (ownerUserId == null) return t('finance.deletedUser', 'Deleted user');
     const ownerName = usersById.get(ownerUserId);
     if (ownerName) return ownerName;
     if (user?.id === ownerUserId && user.username) return user.username;
@@ -997,7 +1014,7 @@ export function FinancePage() {
                 onChange={(e) => setEditCenterName(e.target.value)}
                 placeholder={t('finance.costCenterName', 'Name')}
                 className={fieldClass}
-                disabled={!canUpdateCostCenters}
+                disabled={!canUpdateCostCenters || selectedEditCenterIsPrivate}
               />
             </div>
 
@@ -1196,7 +1213,10 @@ export function FinancePage() {
                       const txCostCenter = tx.cost_center_id == null
                         ? null
                         : (costCenters || []).find((center) => center.id === tx.cost_center_id);
-                      const txUser = usersById.get(tx.user_id);
+                      // No user: deleted since, or with auth off never had one.
+                      const txUser = tx.user_id == null
+                        ? t('finance.noUser', 'No user')
+                        : usersById.get(tx.user_id) || t('finance.userWithId', 'User #{{id}}', { id: tx.user_id });
                       const parsed = tx.transaction_type === 'print_charge'
                         ? parsePrintChargeDescription((tx as { description: string | null }).description ?? null)
                         : null;
@@ -1206,7 +1226,7 @@ export function FinancePage() {
                         <tr key={tx.id} className="border-b border-bambu-dark-tertiary/60 text-white">
                             <td className={tableCellClass}>{formatTimestamp(tx.created_at, i18n.language)}</td>
                             {showCostCenterAccountColumn && (
-                              <td className={tableCellClass}>{txUser || t('finance.userWithId', 'User #{{id}}', { id: tx.user_id })}</td>
+                              <td className={tableCellClass}>{txUser}</td>
                             )}
                             <td className={tableCellClass}>{txCostCenter?.name || '-'}</td>
                             <td className={tableCellClass}>

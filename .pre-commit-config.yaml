@@ -23,7 +23,9 @@ repos:
         # doesn't drift the files away from upstream.
         exclude: ^static/
       - id: end-of-file-fixer
-        exclude: ^static/
+        # .basedpyright/baseline.json is written by basedpyright without a final
+        # newline, and rewritten by it whenever an error is fixed.
+        exclude: ^(static/|\.basedpyright/)
       - id: check-yaml
       - id: check-json
         exclude: ^(static/|frontend/tsconfig\.)
@@ -31,7 +33,22 @@ repos:
         args: ['--maxkb=1000']
         # CHANGELOG.md is intentionally large (detailed per-release entries over
         # many versions); exempt it while keeping the 1 MB guard for everything else.
-        exclude: ^(static/assets/|CHANGELOG\.md$)
+        #
+        # backend/tests/.test_durations is ~1.5 MB and cannot be made smaller:
+        # its 11703 pytest node IDs are 1160 kB of keys before a single duration
+        # value is written, so no encoding fits under the guard (compact JSON
+        # with 3-decimal values still measures 1263 kB). Pruning fast tests is
+        # worse than useless -- pytest-split gives a test missing from the file
+        # the AVERAGE of the entries that remain, so dropped 1 ms tests come back
+        # weighted at ~89 ms and the balance it exists to provide degrades.
+        # It compresses to ~314 kB in the object store. Regenerate with
+        # --store-durations; see the backend test job in .github/workflows/ci.yml.
+        #
+        # The label fonts in backend/app/data/fonts are embedded in label PDFs.
+        # The CJK fallbacks (#3560) cannot fit under the guard: Droid Sans
+        # Fallback is 4 MB of mostly Chinese, and Noto Sans KR is already cut
+        # down to Hangul alone (2.4 MB). A PDF embeds only the glyphs it uses.
+        exclude: ^(static/assets/|CHANGELOG\.md$|backend/tests/\.test_durations$|backend/app/data/fonts/[^/]+\.ttf$)
       - id: check-merge-conflict
       - id: debug-statements
       - id: detect-private-key
@@ -48,7 +65,7 @@ repos:
         files: ^backend/app/
       - id: frontend-typecheck
         name: TypeScript type check
-        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        entry: bash -c 'cd frontend && npm run typecheck'
         language: system
         pass_filenames: false
         files: ^frontend/src/

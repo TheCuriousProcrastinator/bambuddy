@@ -4,10 +4,28 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.finance import CostCenter, UserWallet, WalletTransaction
+from backend.app.models.settings import Settings as AppSettingModel
+from backend.app.schemas.settings import AppSettings as AppSettingsSchema
+
+
+async def resolve_configured_currency(db: AsyncSession) -> str:
+    """The currency this install reports balances in.
+
+    Every other surface in Bambuddy renders the ``currency`` app setting.
+    Finance used to answer from ``user_wallets.currency``, which three of its
+    four writers filled with a hardcoded "EUR", so an install configured for
+    AUD reported a euro balance (#3123). That column is gone; this is the one
+    place that answers the question.
+    """
+    result = await db.execute(select(AppSettingModel).where(AppSettingModel.key == "currency"))
+    setting = result.scalar_one_or_none()
+    if setting and setting.value:
+        return setting.value
+    return AppSettingsSchema().currency
 
 
 def transaction_affects_personal_balance(
-    user_id: int,
+    user_id: int | None,
     cost_center_id: int | None,
     *,
     is_private: bool = False,
@@ -15,6 +33,8 @@ def transaction_affects_personal_balance(
 ) -> bool:
     """Apply the canonical definition to already-loaded transaction data."""
 
+    if user_id is None:  # a deleted user's; they have no wallet any more
+        return False
     return cost_center_id is None or (is_private and owner_user_id == user_id)
 
 

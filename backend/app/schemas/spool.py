@@ -1,6 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, field_validator
+
+from backend.app.schemas.not_null import IgnoresNullForRequiredColumns
+from backend.app.schemas.supplier import SpoolSupplierResponse
 
 # Visual variant applied to a spool's swatch — purely cosmetic, does not
 # affect MQTT/firmware. Kept independent of `subtype` so users can override
@@ -63,6 +66,19 @@ def normalize_extra_colors(value: str | None) -> str | None:
     return ",".join(tokens)
 
 
+def normalize_material_number(value: str | None) -> str | None:
+    """Trim the material number and treat a blank one as unset (#2870).
+
+    Every write path lands here (form, bulk edit, CSV import, direct API), so
+    "15" and "15 " can never become two groups in the statistics aggregate or
+    two entries in the inventory filter. Blank collapses to NULL rather than
+    "", which keeps "has no number" a single state to query for.
+    """
+    if value is None:
+        return None
+    return value.strip() or None
+
+
 def normalize_effect_type(value: str | None) -> str | None:
     if value is None:
         return None
@@ -75,6 +91,17 @@ def normalize_effect_type(value: str | None) -> str | None:
     if canonical not in ALLOWED_EFFECT_TYPES:
         raise ValueError(f"effect_type must be one of: {sorted(ALLOWED_EFFECT_TYPES)}")
     return canonical
+
+
+def naive_utc(value: datetime | None) -> datetime | None:
+    """Store a datetime the way Bambuddy's naive ``DateTime`` columns hold it: UTC.
+
+    A browser sends local time with an offset. Dropping the offset without
+    converting would shift the stored moment by that offset (#2863).
+    """
+    if value is not None and value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
 
 
 def normalize_stock_code(value: str | None) -> str | None:
@@ -140,6 +167,17 @@ class SpoolBase(BaseModel):
     # User-defined category + per-spool low-stock threshold override (#729).
     category: str | None = Field(default=None, max_length=50)
     low_stock_threshold_pct: int | None = Field(default=None, ge=1, le=99)
+    # Internal material / article number (#2870) — the purchasing identifier,
+    # shared by all spools of the same product. Free text, no uniqueness.
+    material_number: str | None = Field(default=None, max_length=64)
+
+    # mode="before": trim first, so a padded value is held to the 64
+    # characters it will store, not to the length it arrived with.
+    @field_validator("material_number", mode="before")
+    @classmethod
+    def _validate_material_number(cls, v):
+        return normalize_material_number(v) if isinstance(v, str) else v
+
     # Free-text storage location, distinct from `location` (AMS slot
     # assignment). Column has lived on the ORM since the inventory rework
     # but was missing from this schema, so writes were silently dropped (#1291).
@@ -148,7 +186,10 @@ class SpoolBase(BaseModel):
 
 
 class SpoolCreate(SpoolBase):
-    pass
+    # Never negative from a client; more than the label is possible (print
+    # tracking of a mis-labelled spool). Here, not on SpoolBase: a response
+    # must still serialise a value stored before there was a bound.
+    weight_used: float = Field(default=0, ge=0)
 
 
 class SpoolBulkCreate(BaseModel):
@@ -156,7 +197,8 @@ class SpoolBulkCreate(BaseModel):
     quantity: int = Field(default=1, ge=1, le=100)
 
 
-class SpoolUpdate(BaseModel):
+class SpoolUpdate(IgnoresNullForRequiredColumns):
+    __orm_table__ = "spool"
     material: str | None = None
     subtype: str | None = None
     color_name: str | None = None
@@ -178,7 +220,7 @@ class SpoolUpdate(BaseModel):
     label_weight: int | None = None
     core_weight: int | None = None
     core_weight_catalog_id: int | None = None
-    weight_used: float | None = None
+    weight_used: float | None = Field(default=None, ge=0)
     slicer_filament: str | None = None
     slicer_filament_name: str | None = None
     nozzle_temp_min: int | None = None
@@ -190,15 +232,34 @@ class SpoolUpdate(BaseModel):
     @classmethod
     def _validate_stock_code(cls, v: str | None) -> str | None:
         return normalize_stock_code(v)
+
     tag_uid: str | None = None
     tray_uuid: str | None = None
     data_origin: str | None = None
     tag_type: str | None = None
     cost_per_kg: float | None = Field(default=None, ge=0)
     weight_locked: bool | None = None
+    # Set by hand for a drying done outside an AMS; null clears it (#2863).
+    last_dried_at: datetime | None = None
+
+    @field_validator("last_dried_at")
+    @classmethod
+    def _validate_last_dried_at(cls, v: datetime | None) -> datetime | None:
+        return naive_utc(v)
+
     # User-defined category + per-spool low-stock threshold override (#729).
     category: str | None = Field(default=None, max_length=50)
     low_stock_threshold_pct: int | None = Field(default=None, ge=1, le=99)
+    # Internal material / article number (#2870).
+    material_number: str | None = Field(default=None, max_length=64)
+
+    # mode="before": trim first, so a padded value is held to the 64
+    # characters it will store, not to the length it arrived with.
+    @field_validator("material_number", mode="before")
+    @classmethod
+    def _validate_material_number(cls, v):
+        return normalize_material_number(v) if isinstance(v, str) else v
+
     storage_location: str | None = Field(default=None, max_length=255)
     location_id: int | None = Field(default=None, gt=0)
 
@@ -257,6 +318,10 @@ class SpoolResponse(SpoolBase):
     rgba: str | None = None
     added_full: bool | None = None
     last_used: datetime | None = None
+    # Last drying (#2863). Only the date is writable, through SpoolUpdate.
+    last_dried_at: datetime | None = None
+    last_dried_temp: int | None = None
+    last_dried_hours: float | None = None
     encode_time: datetime | None = None
     tag_uid: str | None = None
     tray_uuid: str | None = None
@@ -266,9 +331,31 @@ class SpoolResponse(SpoolBase):
     created_at: datetime
     updated_at: datetime
     k_profiles: list[SpoolKProfileResponse] = []
+    # Supplier assignments (#2988): where this product can be bought, with
+    # per-assignment article number / price and a purchase-source marker.
+    # Reads the ORM relationship `supplier_links`, which every route
+    # answering with this schema loads explicitly (see spool_response_loads).
+    suppliers: list[SpoolSupplierResponse] = Field(default=[], validation_alias="supplier_links")
 
     class Config:
         from_attributes = True
+        populate_by_name = True
+
+
+class MaterialNumberStats(BaseModel):
+    """Per-material-number inventory aggregate (#2870).
+
+    ``spool_count`` and ``remaining_g`` cover active (non-archived) spools;
+    ``consumed_g`` and ``cost`` sum the recorded usage history of every spool
+    carrying the number, archived included — consumption doesn't disappear
+    when a spool is archived.
+    """
+
+    material_number: str
+    spool_count: int
+    remaining_g: float
+    consumed_g: float
+    cost: float
 
 
 class SpoolAssignmentCreate(BaseModel):
@@ -276,6 +363,9 @@ class SpoolAssignmentCreate(BaseModel):
     printer_id: int
     ams_id: int
     tray_id: int
+    # The spool also leaves any other slot it is assigned to, in the same
+    # transaction (#1574): a scanned spool is the one in the user's hand.
+    move: bool = False
 
 
 class SpoolAssignmentResponse(BaseModel):
@@ -292,6 +382,7 @@ class SpoolAssignmentResponse(BaseModel):
     configured: bool = False
     pending_config: bool = False  # True when slot was empty at assign time; will configure on insert
     ams_label: str | None = None  # User-defined friendly name for the AMS unit
+    printer_model: str | None = None  # e.g. "H3C": labels its AMS 3H slots "3H-n" and its external inputs "Ext-n"
 
     class Config:
         from_attributes = True

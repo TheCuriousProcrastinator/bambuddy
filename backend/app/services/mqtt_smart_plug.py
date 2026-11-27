@@ -13,6 +13,8 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
+from backend.app.utils.paho_teardown import retire_paho_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,8 +25,11 @@ class SmartPlugMQTTData:
     plug_id: int
     power: float | None = None  # Current power in watts
     energy: float | None = None  # Energy in kWh (today)
+    energy_total: float | None = None  # Lifetime kWh, never resets (#3582)
     state: str | None = None  # "ON" or "OFF"
-    last_seen: datetime = field(default_factory=datetime.utcnow)
+    # Aware, like the value a received message sets: is_reachable subtracts it
+    # from an aware now, which raised TypeError before the first message.
+    last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -47,7 +52,8 @@ class MQTTSmartPlugService:
         self.client: mqtt.Client | None = None
         self.connected = False
         self._lock = threading.Lock()
-        # topic -> list of (plug_id, data_type) where data_type is "power", "energy", or "state"
+        # topic -> list of (plug_id, data_type) where data_type is "power",
+        # "energy", "energy_total" or "state"
         self.subscriptions: dict[str, list[tuple[int, str]]] = {}
         # plug_id -> {data_type: MQTTDataSourceConfig}
         self.plug_configs: dict[int, dict[str, MQTTDataSourceConfig]] = {}
@@ -64,10 +70,6 @@ class MQTTSmartPlugService:
     def is_configured(self) -> bool:
         """Check if the MQTT service is configured and connected."""
         return self._configured and self.connected
-
-    def has_broker_settings(self) -> bool:
-        """Check if broker settings are available (even if not connected yet)."""
-        return bool(self._broker)
 
     async def configure(self, settings: dict) -> bool:
         """Configure MQTT connection from settings.
@@ -279,6 +281,13 @@ class MQTTSmartPlugService:
                     except (ValueError, TypeError):
                         pass  # Ignore unparseable energy reading from MQTT
 
+                elif data_type == "energy_total":
+                    try:
+                        data.energy_total = float(raw_value) * config.multiplier
+                        logger.debug("MQTT smart plug %s: energy_total=%s", plug_id, data.energy_total)
+                    except (ValueError, TypeError):
+                        pass  # Ignore unparseable energy reading from MQTT
+
                 elif data_type == "state":
                     state_str = str(raw_value)
                     # Check against configured ON value if set
@@ -343,6 +352,9 @@ class MQTTSmartPlugService:
         energy_topic: str | None = None,
         energy_path: str | None = None,
         energy_multiplier: float = 1.0,
+        # Lifetime energy counter, read from the energy topic (#3582)
+        energy_total_path: str | None = None,
+        energy_total_multiplier: float = 1.0,
         # State source
         state_topic: str | None = None,
         state_path: str | None = None,
@@ -390,6 +402,17 @@ class MQTTSmartPlugService:
                 self.plug_configs[plug_id]["energy"] = config
                 self._add_subscription(plug_id, effective_energy_topic, "energy")
 
+            # The lifetime counter sits beside the daily one in the same message
+            # (Tasmota's ENERGY.Total next to ENERGY.Today), so it needs a path:
+            # a raw payload can only be one of the two.
+            if effective_energy_topic and energy_total_path:
+                self.plug_configs[plug_id]["energy_total"] = MQTTDataSourceConfig(
+                    topic=effective_energy_topic,
+                    path=energy_total_path,
+                    multiplier=energy_total_multiplier,
+                )
+                self._add_subscription(plug_id, effective_energy_topic, "energy_total")
+
             # Configure state subscription (path is optional - empty means use raw payload)
             if effective_state_topic:
                 config = MQTTDataSourceConfig(
@@ -408,6 +431,7 @@ class MQTTSmartPlugService:
                 f"MQTT smart plug {plug_id}: configured with "
                 f"power={effective_power_topic if power_path else None}, "
                 f"energy={effective_energy_topic if energy_path else None}, "
+                f"energy_total={effective_energy_topic if energy_total_path else None}, "
                 f"state={effective_state_topic if state_path else None}"
             )
 
@@ -482,7 +506,7 @@ class MQTTSmartPlugService:
                 self._disconnection_event = threading.Event()
                 self.client.disconnect()
                 await asyncio.to_thread(self._disconnection_event.wait, timeout=timeout)
-                self.client.loop_stop()
+                retire_paho_client(self.client, "smart-plugs")
             except Exception as e:
                 logger.debug("MQTT smart plug disconnect error (ignored): %s", e)
             finally:
@@ -518,6 +542,8 @@ def subscribe_plug_to_mqtt(service: "MQTTSmartPlugService", plug: Any) -> list[s
         energy_topic=energy_topic,
         energy_path=plug.mqtt_energy_path,
         energy_multiplier=plug.mqtt_energy_multiplier or legacy_mult,
+        energy_total_path=(plug.mqtt_energy_total_path or "").strip() or None,
+        energy_total_multiplier=plug.mqtt_energy_total_multiplier or 1.0,
         state_topic=state_topic,
         state_path=plug.mqtt_state_path,
         state_on_value=plug.mqtt_state_on_value,

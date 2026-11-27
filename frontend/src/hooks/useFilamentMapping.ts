@@ -9,9 +9,12 @@ import {
   findNearestSimilar,
   formatSlotLabel,
   getGlobalTrayId,
+  isAmsHtUnit,
   preferLowestSortKey,
   compareSortKeys,
+  rackExternalLabel,
 } from '../utils/amsHelpers';
+import { externalSlotIndex, trayLayoutOf } from '../utils/trayIds';
 import type { PrinterStatus, SlotSpoolIdentity } from '../api/client';
 
 /** Global-tray-id → the identity of the spool Bambuddy has bound to that slot. */
@@ -59,32 +62,37 @@ export function buildLoadedFilaments(
   // dual-nozzle hardware exposes multiple external feeds) each independently
   // imply dual-nozzle — keep them as fallbacks for any firmware rev that
   // surfaces one signal but not the other. (#1257)
+  // A rack printer (H3C) has nine external inputs but one extruder.
+  const rackExternals = trayLayoutOf(printerStatus?.ams, printerStatus?.vt_tray).rack;
   const hasDualNozzle =
     Boolean(printerStatus?.nozzles?.[1]?.nozzle_diameter)
     || (amsExtruderMap && Object.keys(amsExtruderMap).length > 0)
-    || (printerStatus?.vt_tray?.length ?? 0) > 1;
+    || ((printerStatus?.vt_tray?.length ?? 0) > 1 && !rackExternals);
 
   // Add filaments from all AMS units (regular and HT)
   printerStatus?.ams?.forEach((amsUnit) => {
-    const isHt = amsUnit.tray.length === 1; // AMS-HT has single tray
+    const isHt = isAmsHtUnit(amsUnit.id);
     amsUnit.tray.forEach((tray) => {
       if (tray.tray_type) {
         const color = normalizeColor(tray.tray_color);
-        const globalTrayId = getGlobalTrayId(amsUnit.id, tray.id, false);
+        const globalTrayId = getGlobalTrayId(amsUnit.id, tray.id, false, amsUnit.ams_type);
         const identity = slotSpools?.get(globalTrayId);
         filaments.push({
           type: tray.tray_type,
           color,
-          colorName: identity?.color_name?.trim() || getColorName(color, tray.tray_sub_brands),
+          colorName: identity?.color_name?.trim() || getColorName(color, tray.tray_sub_brands, tray.tray_info_idx),
           amsId: amsUnit.id,
           trayId: tray.id,
           isHt,
           isExternal: false,
-          label: formatSlotLabel(amsUnit.id, tray.id, isHt, false),
+          label: formatSlotLabel(amsUnit.id, tray.id, isHt, false, amsUnit.ams_type),
           globalTrayId,
           trayInfoIdx: tray.tray_info_idx || '',
           traySubBrands: tray.tray_sub_brands || '',
           spoolName: spoolDisplayName(identity) ?? undefined,
+          extraColors: identity?.extra_colors ?? undefined,
+          effectType: identity?.effect_type ?? undefined,
+          spoolSubtype: identity?.subtype ?? undefined,
           extruderId: amsExtruderMap?.[String(amsUnit.id)],
           remain: tray.remain ?? -1,
         });
@@ -97,23 +105,26 @@ export function buildLoadedFilaments(
     if (extTray.tray_type) {
       const color = normalizeColor(extTray.tray_color);
       const trayId = extTray.id ?? 254;
-      const hasDualExternal = (printerStatus?.vt_tray?.length ?? 0) > 1;
+      const hasDualExternal = (printerStatus?.vt_tray?.length ?? 0) > 1 && !rackExternals;
       // The external holder's global tray id IS the tray id (254 / 255), which
       // is how the backend keys it too — see `_ams_key_to_global`.
       const identity = slotSpools?.get(trayId);
       filaments.push({
         type: extTray.tray_type,
         color,
-        colorName: identity?.color_name?.trim() || getColorName(color, extTray.tray_sub_brands),
+        colorName: identity?.color_name?.trim() || getColorName(color, extTray.tray_sub_brands, extTray.tray_info_idx),
         amsId: -1,
-        trayId: trayId - 254,
+        trayId: externalSlotIndex(trayId),
         isHt: false,
         isExternal: true,
-        label: hasDualExternal ? (trayId === 254 ? 'Ext-L' : 'Ext-R') : 'External',
+        label: rackExternals ? rackExternalLabel(trayId) : hasDualExternal ? (trayId === 254 ? 'Ext-L' : 'Ext-R') : 'External',
         globalTrayId: trayId,
         trayInfoIdx: extTray.tray_info_idx || '',
         traySubBrands: extTray.tray_sub_brands || '',
         spoolName: spoolDisplayName(identity) ?? undefined,
+        extraColors: identity?.extra_colors ?? undefined,
+        effectType: identity?.effect_type ?? undefined,
+        spoolSubtype: identity?.subtype ?? undefined,
         extruderId: hasDualNozzle ? (255 - trayId) : undefined,
         remain: extTray.remain ?? -1,
       });
@@ -184,6 +195,16 @@ export interface LoadedFilament {
   extruderId?: number;
   /** Remaining filament percentage (0-100), -1 = unknown */
   remain: number;
+  /** The bound spool's remaining colour stops and effect overlay, when the
+   *  slot has a binding (#3159). Display only, like `spoolName`: a tray record
+   *  carries one hex, so without these a two-tone spool draws as its base
+   *  colour. Absent for a slot configured on the printer -- the firmware has
+   *  nothing to report, and a solid swatch is then the honest one. */
+  extraColors?: string;
+  effectType?: string;
+  /** The bound spool's subtype ("PLA Silk", "Multicolor"), which decides
+   *  whether the swatch renders its stops as a conic sweep. */
+  spoolSubtype?: string;
 }
 
 /**
